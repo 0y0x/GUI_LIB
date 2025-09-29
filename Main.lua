@@ -234,10 +234,60 @@ apex.categories.utility:CreateModule({
 		if state then
 			localp.CameraMaxZoomDistance = 99999999
 		else
-			localp.CameraMaxZoomDistance = 128
+			localp.CameraMaxZoomDistance = 14
 		end
 	end
 })
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Create health label
+local healthLabel = Instance.new("TextLabel")
+healthLabel.Name = "HealthLabel"
+healthLabel.Size = UDim2.new(0, 150, 0, 50)
+healthLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+healthLabel.Position = UDim2.new(0.5, 0, 0.9, 0) -- bottom center
+healthLabel.BackgroundTransparency = 0.5
+healthLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+healthLabel.TextColor3 = Color3.fromRGB(46, 255, 23)
+healthLabel.Font = Enum.Font.SourceSansBold
+healthLabel.TextSize = 20
+healthLabel.Text = "Health: 100 ♥️"
+healthLabel.Parent = LocalPlayer.PlayerGui:WaitForChild("ApexUI")
+healthLabel.Visible = false
+
+-- Keep a single update loop
+local updateConnection
+
+apex.categories.render:CreateModule({
+	Name = "Health",
+	Callback = function(state)
+		healthLabel.Visible = state
+
+		if state then
+			-- Start updating health
+			if not updateConnection then
+				updateConnection = RunService.RenderStepped:Connect(function()
+					local char = LocalPlayer.Character
+					local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+					if humanoid then
+						healthLabel.Text = "Health: "..math.floor(humanoid.Health) .. " ♥️"
+					end
+				end)
+			end
+		else
+			-- Stop updating health when disabled
+			if updateConnection then
+				updateConnection:Disconnect()
+				updateConnection = nil
+			end
+		end
+	end
+})
+
+
 
 
 
