@@ -109,6 +109,32 @@ for _, catName in ipairs({"Combat", "Blatant", "Render", "Utility", "World"}) do
 	gui_lib.categories[string.lower(catName)] = CreateCategory(catName)
 end
 
+
+local ToggleButton = Instance.new("ImageButton")
+ToggleButton.Name = "ToggleUI"
+ToggleButton.Size = UDim2.new(0, 45, 0, 45) -- bigger so easy to tap
+ToggleButton.AnchorPoint = Vector2.new(0, 0)
+ToggleButton.Position = UDim2.new(0, 0, 0, 0)
+ToggleButton.BackgroundTransparency = 1 -- make background invisible
+ToggleButton.Image = "rbxassetid://17679728753"
+ToggleButton.Parent = ScreenGui
+ToggleButton.Active = true
+ToggleButton.Draggable = true
+
+local round = Instance.new("UICorner")
+round.CornerRadius = UDim.new(0, 5)
+round.Parent = ToggleButton
+
+-- Toggle logic
+local uiVisible = true
+ToggleButton.MouseButton1Click:Connect(function()
+	uiVisible = not uiVisible
+	CategoryHolderParent.Visible = uiVisible
+end)
+
+
+
+
 local apex = gui_lib
 
 
