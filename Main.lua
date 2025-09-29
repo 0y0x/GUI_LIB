@@ -128,57 +128,52 @@ local apex = gui_lib
 
 
 
+-- Sprint Module
+local sprintEnabled = false
+local SprintController
+
 apex.categories.combat:CreateModule({
 	Name = "Sprint",
 	Callback = function(state)
-		local Players = game:GetService("Players")
-		local RunService = game:GetService("RunService")
+		sprintEnabled = state
 
-		local LocalPlayer = Players.LocalPlayer
-		local autoSprintEnabled = state
-		local heartbeatConn
-
-		local function SetupSprint()
-			local Knit
-			repeat
-				pcall(function()
-					Knit = debug.getupvalue(require(LocalPlayer.PlayerScripts.TS.knit).setup, 9)
-				end)
-				task.wait()
-			until Knit and Knit.Controllers and Knit.Controllers.SprintController
-
-			local SprintController = Knit.Controllers.SprintController
-
-			heartbeatConn = RunService.Heartbeat:Connect(function()
-				if autoSprintEnabled and SprintController then
-					SprintController:startSprinting()
-				elseif SprintController then
-					SprintController:stopSprinting()
-				end
-			end)
-
-			Players.LocalPlayer.CharacterAdded:Connect(function()
-				task.wait(0.1)
-				Knit = nil
+		-- Get Knit & SprintController (only once)
+		if not SprintController then
+			local function SetupController()
+				local Knit
 				repeat
 					pcall(function()
-						Knit = debug.getupvalue(require(LocalPlayer.PlayerScripts.TS.knit).setup, 9)
+						Knit = debug.getupvalue(require(game.Players.LocalPlayer.PlayerScripts.TS.knit).setup, 9)
 					end)
 					task.wait()
 				until Knit and Knit.Controllers and Knit.Controllers.SprintController
 				SprintController = Knit.Controllers.SprintController
+			end
+			task.spawn(SetupController)
+
+			-- Persistent loop
+			task.spawn(function()
+				while true do
+					if sprintEnabled and SprintController then
+						SprintController:startSprinting()
+					elseif not sprintEnabled and SprintController then
+						SprintController:stopSprinting()
+					end
+					task.wait(0.1)
+				end
 			end)
-		end
 
-		task.spawn(SetupSprint)
-
-		-- Update autoSprintEnabled state
-		autoSprintEnabled = state
-		if not state and heartbeatConn then
-			heartbeatConn:Disconnect()
+			-- Re-setup on respawn
+			game.Players.LocalPlayer.CharacterAdded:Connect(function()
+				task.wait(0.1)
+				SetupController()
+			end)
 		end
 	end
 })
+
+
+
 
 
 -- Autoclicker Module
@@ -217,3 +212,6 @@ apex.categories.utility:CreateModule({
 		end
 	end
 })
+
+
+
