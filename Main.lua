@@ -203,28 +203,44 @@ apex.categories.combat:CreateModule({
 
 
 -- Autoclicker Module
-local autoclickerEnabled = false
-apex.categories.combat:CreateModule({
-	Name = "Autoclicker",
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+local AutoClicker = {}
+local Mode = { Value = "Tool" } -- Default mode
+local CPS = { GetRandomValue = function() return math.random(20, 25) end } -- Default CPS
+
+AutoClicker = apex.categories.combat:CreateModule({
+	Name = "AutoClicker",
 	Callback = function(state)
-		autoclickerEnabled = state
-		if autoclickerEnabled then
+		if state then
 			task.spawn(function()
-				local LocalPlayer = game.Players.LocalPlayer
-				while autoclickerEnabled do
-					local character = LocalPlayer.Character
-					if character then
-						local tool = character:FindFirstChildOfClass("Tool")
-						if tool then
-							tool:Activate()
+				while state do
+					if Mode.Value == "Tool" then
+						local character = LocalPlayer.Character
+						if character then
+							local tool = character:FindFirstChildOfClass("Tool")
+							if tool and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+								tool:Activate()
+							end
+						end
+					else
+						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+							-- Left click logic if needed
+							mouse1click()
+						elseif UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+							mouse2click()
 						end
 					end
-					task.wait(0.1)
+
+					task.wait(1 / CPS.GetRandomValue())
 				end
 			end)
 		end
 	end
 })
+
 
 -- Zoom Unlocker Module
 apex.categories.utility:CreateModule({
@@ -248,7 +264,7 @@ local healthLabel = Instance.new("TextLabel")
 healthLabel.Name = "HealthLabel"
 healthLabel.Size = UDim2.new(0, 150, 0, 50)
 healthLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-healthLabel.Position = UDim2.new(0.5, 0, 0.9, 0) -- bottom center
+healthLabel.Position = UDim2.new(0.5, 0, 0.75, 0) -- bottom center
 healthLabel.BackgroundTransparency = 0.5
 healthLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 healthLabel.TextColor3 = Color3.fromRGB(46, 255, 23)
@@ -287,7 +303,146 @@ apex.categories.render:CreateModule({
 	end
 })
 
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 
+apex.categories.blatant:CreateModule({
+	Name = "SmartAntiVoidPlate",
+	Callback = function(state)
+		local platform
+		local countdownLabel
+		local rgbBar
+		local backgroundBar
+		local TextStroke
+		local timer = 2.5
+		local touchingPlate = false
+		local lastTouchedObject = nil
+		local updateConnection
 
+		local function createPlatform()
+			if platform then platform:Destroy() end
 
+			platform = Instance.new("Part")
+			platform.Size = Vector3.new(100000, 0.1, 100000)
+			platform.Anchored = true
+			platform.Material = Enum.Material.Ice
+			platform.Transparency = 0.9
+			platform.Color = Color3.fromRGB(255, 255, 255)
+			platform.TopSurface = Enum.SurfaceType.Smooth
+			platform.BottomSurface = Enum.SurfaceType.Smooth
+			platform.Position = Vector3.new(0, 0, 0)
+			platform.Name = "AntiVoidPlatform"
+			platform.Parent = workspace
+		end
 
+		local function createTimerUI()
+			if countdownLabel then return end
+
+			-- Timer text
+			countdownLabel = Instance.new("TextLabel")
+			countdownLabel.Size = UDim2.new(0, 250, 0, 20)
+			countdownLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+			countdownLabel.Position = UDim2.new(0.5, 0, 0.88, 0)
+			countdownLabel.BackgroundTransparency = 1
+			countdownLabel.TextScaled = true
+			countdownLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+			countdownLabel.Font = Enum.Font.SourceSansBold
+			countdownLabel.Text = "2.5s"
+			countdownLabel.Visible = false
+			countdownLabel.Parent = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("ApexUI")
+			
+			TextStroke = Instance.new("UIStroke")
+			TextStroke.Parent = countdownLabel
+
+			-- Background bar
+			backgroundBar = Instance.new("Frame")
+			backgroundBar.Size = UDim2.new(1, 0, 1, 0) -- your requested size
+			backgroundBar.AnchorPoint = Vector2.new(0.5, 0)
+			backgroundBar.Position = UDim2.new(0.5, 0, 1, 5)
+			backgroundBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+			backgroundBar.BorderSizePixel = 0
+			backgroundBar.Visible = false
+			backgroundBar.Parent = countdownLabel
+			backgroundBar.Transparency = 0.5
+
+			-- RGB bar
+			rgbBar = Instance.new("Frame")
+			rgbBar.Size = UDim2.new(1, 0, 1, 0)
+			rgbBar.AnchorPoint = Vector2.new(0, 0) -- left side anchor so it shrinks rightwards
+			rgbBar.Position = UDim2.new(0, 0, 0, 0)
+			rgbBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+			rgbBar.BorderSizePixel = 0
+			rgbBar.Visible = false
+			rgbBar.Parent = backgroundBar
+		end
+
+		local function resetTimer()
+			timer = 2.5
+		end
+
+		local function updateTimer()
+			if touchingPlate then
+				timer = timer - RunService.RenderStepped:Wait()
+				if timer < 0 then timer = 0 end
+			end
+			if countdownLabel and touchingPlate then
+				countdownLabel.Text = string.format("%.1f s", timer)
+				countdownLabel.Visible = true
+				backgroundBar.Visible = true
+				rgbBar.Visible = true
+
+				-- Shrink horizontally left → right
+				rgbBar.Size = UDim2.new(timer / 5 * 2, 0, 1, 0)
+
+				-- RGB cycling
+				local t = tick() % 5
+				rgbBar.BackgroundColor3 = Color3.fromHSV(t / 5, 1, 1)
+			else
+				if countdownLabel then countdownLabel.Visible = false end
+				if backgroundBar then backgroundBar.Visible = false end
+				if rgbBar then rgbBar.Visible = false end
+			end
+		end
+
+		local function trackPlatformPosition()
+			local character = LocalPlayer.Character
+			if not character then return end
+			local rootPart = character:FindFirstChild("HumanoidRootPart")
+			if not rootPart then return end
+
+			local rayOrigin = rootPart.Position
+			local rayDirection = Vector3.new(0, -50, 0)
+			local raycastParams = RaycastParams.new()
+			raycastParams.FilterDescendantsInstances = {character, platform}
+			raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+			local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+
+			if raycastResult and raycastResult.Instance and raycastResult.Instance.CanCollide then
+				local hitObject = raycastResult.Instance
+				if hitObject ~= platform then
+					lastTouchedObject = hitObject
+					resetTimer()
+				end
+
+				platform.Position = Vector3.new(0, hitObject.Position.Y - 0.1, 0)
+				touchingPlate = false
+			else
+				touchingPlate = true
+			end
+		end
+
+		if state then
+			createPlatform()
+			createTimerUI()
+			updateConnection = RunService.RenderStepped:Connect(function()
+				trackPlatformPosition()
+				updateTimer()
+			end)
+		else
+			if platform then platform:Destroy() end
+			if updateConnection then updateConnection:Disconnect() end
+		end
+	end
+})
