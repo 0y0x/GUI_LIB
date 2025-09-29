@@ -1,4 +1,4 @@
-local apex = loadstring(game:HttpGet("https://raw.githubusercontent.com/0y0x/GUI_LIB/refs/heads/main/Main.lua", true))()
+local apex = loadstring(game:HttpGet("https://raw.githubusercontent.com/0y0x/GUI_LIB/refs/heads/main/Main.lua"))()
 
 -- Sprint module
 apex.categories.combat:CreateModule({
