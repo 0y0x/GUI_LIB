@@ -59,7 +59,7 @@ local function CreateCategory(name)
 
 	-- Right‑click toggle visibility for modules only
 	Title.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			CategoryFrame.Visible = not CategoryFrame.Visible
 		end
 	end)
