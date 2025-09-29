@@ -109,9 +109,25 @@ for _, catName in ipairs({"Combat", "Blatant", "Render", "Utility", "World"}) do
 	gui_lib.categories[string.lower(catName)] = CreateCategory(catName)
 end
 
-local apex = gui_lib -- Treat this as your GUI library
+local apex = gui_lib
 
--- Sprint Module
+
+
+
+
+--GUI library
+------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------
+--main GUI
+
+
+
+
+
 apex.categories.combat:CreateModule({
 	Name = "Sprint",
 	Callback = function(state)
@@ -120,8 +136,9 @@ apex.categories.combat:CreateModule({
 
 		local LocalPlayer = Players.LocalPlayer
 		local autoSprintEnabled = state
+		local heartbeatConn
 
-		task.spawn(function()
+		local function SetupSprint()
 			local Knit
 			repeat
 				pcall(function()
@@ -132,10 +149,11 @@ apex.categories.combat:CreateModule({
 
 			local SprintController = Knit.Controllers.SprintController
 
-			local heartbeatConn
 			heartbeatConn = RunService.Heartbeat:Connect(function()
 				if autoSprintEnabled and SprintController then
 					SprintController:startSprinting()
+				elseif SprintController then
+					SprintController:stopSprinting()
 				end
 			end)
 
@@ -150,9 +168,18 @@ apex.categories.combat:CreateModule({
 				until Knit and Knit.Controllers and Knit.Controllers.SprintController
 				SprintController = Knit.Controllers.SprintController
 			end)
-		end)
+		end
+
+		task.spawn(SetupSprint)
+
+		-- Update autoSprintEnabled state
+		autoSprintEnabled = state
+		if not state and heartbeatConn then
+			heartbeatConn:Disconnect()
+		end
 	end
 })
+
 
 -- Autoclicker Module
 local autoclickerEnabled = false
