@@ -763,3 +763,34 @@ apex.categories.utility:CreateModule({
 	end
 })
 
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local InfiniteJumpEnabled = false
+
+apex.categories.blatant:CreateModule({
+	Name = "InfiniteJump",
+	Callback = function(state)
+		InfiniteJumpEnabled = state
+
+		if not apex.InfiniteJumpLoop then
+			apex.InfiniteJumpLoop = true
+			task.spawn(function()
+				while true do
+					task.wait()
+					if InfiniteJumpEnabled then
+						UserInputService.JumpRequest:Connect(function()
+							local char = LocalPlayer.Character
+							if not char then return end
+							local humanoid = char:FindFirstChildOfClass("Humanoid")
+							if humanoid and humanoid.Health > 0 then
+								humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+							end
+						end)
+					end
+				end
+			end)
+		end
+	end
+})
