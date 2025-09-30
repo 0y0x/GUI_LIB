@@ -163,7 +163,7 @@ apex.categories.combat:CreateModule({
 	Callback = function(state)
 		sprintEnabled = state
 
-		-- Get Knit & SprintController (only once)
+		-- Get Knit & SprintController once
 		if not SprintController then
 			local function SetupController()
 				local Knit
@@ -177,25 +177,29 @@ apex.categories.combat:CreateModule({
 			end
 			task.spawn(SetupController)
 
-			-- Persistent loop
-			task.spawn(function()
-				if sprintEnabled and SprintController then
-					while wait()do 
-						SprintController:startSprinting()
-					end
-				elseif not sprintEnabled and SprintController then
-					SprintController:stopSprinting()
-				end
-			end)
-
 			-- Re-setup on respawn
 			game.Players.LocalPlayer.CharacterAdded:Connect(function()
 				task.wait(0.1)
 				SetupController()
 			end)
 		end
+
+		-- Start or stop sprinting
+		if SprintController then
+			if sprintEnabled then
+				task.spawn(function()
+					while sprintEnabled and SprintController do
+						SprintController:startSprinting()
+						task.wait(0.1)
+					end
+				end)
+			else
+				SprintController:stopSprinting()
+			end
+		end
 	end
 })
+
 
 
 
@@ -206,16 +210,18 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
-local AutoClicker = {}
+local AutoClickerEnabled = false
 local Mode = { Value = "Tool" } -- Default mode
-local CPS = { GetRandomValue = function() return math.random(50, 25) end } -- Default CPS
+local CPS = { GetRandomValue = function() return math.random(99999, 99999) end } -- Default CPS
 
 AutoClicker = apex.categories.combat:CreateModule({
 	Name = "AutoClicker",
 	Callback = function(state)
-		if state then
+		AutoClickerEnabled = state
+
+		if AutoClickerEnabled then
 			task.spawn(function()
-				while state do
+				while AutoClickerEnabled do
 					if Mode.Value == "Tool" then
 						local character = LocalPlayer.Character
 						if character then
@@ -226,7 +232,6 @@ AutoClicker = apex.categories.combat:CreateModule({
 						end
 					else
 						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-							-- Left click logic if needed
 							mouse1click()
 						elseif UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
 							mouse2click()
@@ -239,6 +244,7 @@ AutoClicker = apex.categories.combat:CreateModule({
 		end
 	end
 })
+
 
 
 -- Zoom Unlocker Module
@@ -491,7 +497,9 @@ apex.categories.world:CreateModule({
 	Name = "Gravity",
 	Callback = function(state)
 		if state == true then
-			workspace.Gravity = 75
+			while wait() do
+				workspace.Gravity = 75
+			end
 		else
 			workspace.Gravity = 196.2
 		end
@@ -502,17 +510,14 @@ apex.categories.world:CreateModule({
 apex.categories.render:CreateModule({
 	Name = "LineESP",
 	Callback = function(state)
-		--// Services
 		local Players = game:GetService("Players")
 		local RunService = game:GetService("RunService")
 		local LocalPlayer = Players.LocalPlayer
 		local Camera = workspace.CurrentCamera
 
-		--// Line storage
 		local lines = {}
-		local conn
+		local running = false
 
-		-- Clear old lines
 		local function clearLines()
 			for _, line in ipairs(lines) do
 				if line and line.Remove then
@@ -522,48 +527,46 @@ apex.categories.render:CreateModule({
 			table.clear(lines)
 		end
 
-		-- Drawing loop
 		local function drawLines()
-			conn = RunService.RenderStepped:Connect(function()
-				clearLines()
+			local viewportSize = Camera.ViewportSize
+			local screenCenter = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
 
-				-- Get screen center
-				local viewportSize = Camera.ViewportSize
-				local screenCenter = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+			clearLines()
 
-				for _, player in ipairs(Players:GetPlayers()) do
-					if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-						local enemyHRP = player.Character.HumanoidRootPart
-						local enemyScreenPos, enemyOnScreen = Camera:WorldToViewportPoint(enemyHRP.Position)
+			for _, player in ipairs(Players:GetPlayers()) do
+				if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+					local enemyHRP = player.Character.HumanoidRootPart
+					local enemyScreenPos, enemyOnScreen = Camera:WorldToViewportPoint(enemyHRP.Position)
 
-						if enemyOnScreen then
-							local line = Drawing.new("Line")
-							line.From = screenCenter
-							line.To = Vector2.new(enemyScreenPos.X, enemyScreenPos.Y)
-							line.Color = Color3.fromRGB(22, 144, 197)
-							line.Thickness = 2
-							line.Transparency = 1
-							line.Visible = true
-							table.insert(lines, line)
-						end
+					if enemyOnScreen then
+						local line = Drawing.new("Line")
+						line.From = screenCenter
+						line.To = Vector2.new(enemyScreenPos.X, enemyScreenPos.Y)
+						line.Color = Color3.fromRGB(22, 144, 197)
+						line.Thickness = 2
+						line.Transparency = 1
+						line.Visible = true
+						table.insert(lines, line)
 					end
 				end
-			end)
+			end
 		end
 
-		-- Toggle ON
-		if state == true then
-			drawLines()
+		if state then
+			running = true
+			spawn(function()
+				while running do
+					drawLines()
+					RunService.RenderStepped:Wait()
+				end
+			end)
 		else
-			-- Toggle OFF
-			if conn then
-				conn:Disconnect()
-				conn = nil
-			end
+			running = false
 			clearLines()
 		end
 	end
 })
+
 
 
 local SpiderEnabled = false
@@ -614,21 +617,18 @@ apex.categories.blatant:CreateModule({
 apex.categories.render:CreateModule({
 	Name = "ESP",
 	Callback = function(state)
-		--// Services
 		local Players = game:GetService("Players")
 		local RunService = game:GetService("RunService")
 		local LocalPlayer = Players.LocalPlayer
 		local Camera = workspace.CurrentCamera
 
-		--// Storage
 		local connections = {}
 		local boxes = {}
 
-		-- Helper: Clear all ESP drawings
 		local function clearESP()
-			for _, box in pairs(boxes) do
-				if box.Box then box.Box:Remove() end
-				if box.Outline then box.Outline:Remove() end
+			for _, boxData in pairs(boxes) do
+				if boxData.Box then boxData.Box:Remove() end
+				if boxData.Outline then boxData.Outline:Remove() end
 			end
 			table.clear(boxes)
 			for _, conn in pairs(connections) do
@@ -637,8 +637,16 @@ apex.categories.render:CreateModule({
 			table.clear(connections)
 		end
 
-		-- Helper: Add ESP for a player
 		local function addESP(player)
+			if boxes[player] then return end -- avoid duplicates
+
+			local outline = Drawing.new("Square")
+			outline.Visible = false
+			outline.Color = Color3.new(0, 0, 0)
+			outline.Thickness = 2
+			outline.Transparency = 1
+			outline.Filled = false
+
 			local box = Drawing.new("Square")
 			box.Visible = false
 			box.Color = Color3.new(1, 1, 1)
@@ -649,37 +657,41 @@ apex.categories.render:CreateModule({
 			boxes[player] = {Box = box, Outline = outline}
 
 			local conn = RunService.RenderStepped:Connect(function()
-				if player.Character and player.Character:FindFirstChild("Humanoid") and player.Character:FindFirstChild("HumanoidRootPart") and player ~= LocalPlayer and player.Character.Humanoid.Health > 0 then
-					local root = player.Character.HumanoidRootPart
-					local head = player.Character:FindFirstChild("Head")
-					if not head then return end
+				if not player.Character then
+					outline.Visible = false
+					box.Visible = false
+					return
+				end
 
-					local headPos, hOnScreen = Camera:WorldToViewportPoint(head.Position + Vector3.new(0,0,0))
-					local rootPos, rOnScreen = Camera:WorldToViewportPoint(root.Position)
-					local legPos, lOnScreen = Camera:WorldToViewportPoint(root.Position - Vector3.new(0,3,0))
+				local humanoid = player.Character:FindFirstChild("Humanoid")
+				local root = player.Character:FindFirstChild("HumanoidRootPart")
+				local head = player.Character:FindFirstChild("Head")
+				if not humanoid or not root or not head or humanoid.Health <= 0 then
+					outline.Visible = false
+					box.Visible = false
+					return
+				end
 
-					local onScreen = hOnScreen and rOnScreen and lOnScreen and rootPos.Z > 0
+				local headPos, hOnScreen = Camera:WorldToViewportPoint(head.Position)
+				local rootPos, rOnScreen = Camera:WorldToViewportPoint(root.Position)
+				local legPos, lOnScreen = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
 
-					if onScreen then
-						local height = headPos.Y - legPos.Y
-						local width = height / 2
+				if hOnScreen and rOnScreen and lOnScreen and rootPos.Z > 0 then
+					local height = headPos.Y - legPos.Y
+					local width = height / 2
 
-						outline.Size = Vector2.new(width, height)
-						outline.Position = Vector2.new(rootPos.X - (width / 2), legPos.Y)
-						outline.Visible = true
+					outline.Size = Vector2.new(width, height)
+					outline.Position = Vector2.new(rootPos.X - width / 2, legPos.Y)
+					outline.Visible = true
 
-						box.Size = Vector2.new(width, height)
-						box.Position = Vector2.new(rootPos.X - (width / 2), legPos.Y)
-						box.Visible = true
+					box.Size = Vector2.new(width, height)
+					box.Position = Vector2.new(rootPos.X - width / 2, legPos.Y)
+					box.Visible = true
 
-						if player.TeamColor == LocalPlayer.TeamColor then
-							box.Color = LocalPlayer.TeamColor.Color -- green teammate
-						else
-							box.Color = LocalPlayer.TeamColor.Color -- red enemy
-						end
+					if player.TeamColor == LocalPlayer.TeamColor then
+						box.Color = Color3.fromRGB(0, 255, 0) -- green teammates
 					else
-						outline.Visible = false
-						box.Visible = false
+						box.Color = Color3.fromRGB(255, 0, 0) -- red enemies
 					end
 				else
 					outline.Visible = false
@@ -690,19 +702,14 @@ apex.categories.render:CreateModule({
 			table.insert(connections, conn)
 		end
 
-		-- Toggle logic
-		if state == true then
-			-- Add for existing players
+		if state then
 			for _, p in ipairs(Players:GetPlayers()) do
 				if p ~= LocalPlayer then
 					addESP(p)
 				end
 			end
-			-- New players
-			table.insert(connections, Players.PlayerAdded:Connect(function(p)
-				addESP(p)
-			end))
-			-- Cleanup when players leave
+
+			table.insert(connections, Players.PlayerAdded:Connect(addESP))
 			table.insert(connections, Players.PlayerRemoving:Connect(function(p)
 				if boxes[p] then
 					if boxes[p].Box then boxes[p].Box:Remove() end
@@ -715,6 +722,7 @@ apex.categories.render:CreateModule({
 		end
 	end
 })
+
 
 
 -- NoFall state variable
@@ -750,8 +758,8 @@ apex.categories.utility:CreateModule({
 								if result then
 									local fallDist = (root.Position.Y - result.Position.Y)
 
-									if fallDist >= 19 then
-										root.Velocity = Vector3.new(root.Velocity.X, -40, root.Velocity.Z)
+									if fallDist >= 1 then
+										root.Velocity = Vector3.new(root.Velocity.X, -60, root.Velocity.Z)
 									end
 								end
 							end
@@ -773,24 +781,145 @@ apex.categories.blatant:CreateModule({
 	Name = "InfiniteJump",
 	Callback = function(state)
 		InfiniteJumpEnabled = state
+	end
+})
 
-		if not apex.InfiniteJumpLoop then
-			apex.InfiniteJumpLoop = true
+-- Connect once outside the toggle
+if not apex.InfiniteJumpConnected then
+	apex.InfiniteJumpConnected = true
+
+	UserInputService.JumpRequest:Connect(function()
+		if InfiniteJumpEnabled then
+			local char = LocalPlayer.Character
+			if not char then return end
+			local humanoid = char:FindFirstChildOfClass("Humanoid")
+			if humanoid and humanoid.Health > 0 then
+				humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+			end
+		end
+	end)
+end
+
+
+apex.categories.world:CreateModule({
+	Name = "SafeWalk",
+	Callback = function(state)
+		local Players = game:GetService("Players")
+		local LocalPlayer = Players.LocalPlayer
+		local Camera = workspace.CurrentCamera
+
+		if not apex._SafeWalkModule then
+			apex._SafeWalkModule = {}
+			apex._SafeWalkOldMove = nil
+		end
+
+		if state then
+			-- Enable SafeWalk
+			if not apex._SafeWalkModule.enabled then
+				local suc, module = pcall(function()
+					return require(LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")).controls
+				end)
+
+				if suc and module then
+					apex._SafeWalkOldMove = module.moveFunction
+
+					module.moveFunction = function(self, vec, face)
+						if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+							local rayCheck = RaycastParams.new()
+							rayCheck.RespectCanCollide = true
+							rayCheck.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+
+							local root = LocalPlayer.Character.HumanoidRootPart
+							local movedir = root.Position + vec
+							local ray = workspace:Raycast(movedir, Vector3.new(0, -15, 0), rayCheck)
+
+							if not ray then
+								local check = workspace:Blockcast(root.CFrame, Vector3.new(3, 1, 3), Vector3.new(0, -(LocalPlayer.Character.Humanoid.HipHeight + 1), 0), rayCheck)
+								if check then
+									vec = (check.Instance:GetClosestPointOnSurface(movedir) - root.Position) * Vector3.new(1, 0, 1)
+								end
+							end
+						end
+
+						return apex._SafeWalkOldMove(self, vec, face)
+					end
+
+					apex._SafeWalkModule.enabled = true
+				end
+			end
+		else
+			-- Disable SafeWalk
+			if apex._SafeWalkModule.enabled and apex._SafeWalkOldMove then
+				local suc, module = pcall(function()
+					return require(LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")).controls
+				end)
+
+				if suc and module then
+					module.moveFunction = apex._SafeWalkOldMove
+				end
+
+				apex._SafeWalkModule.enabled = false
+				apex._SafeWalkOldMove = nil
+			end
+		end
+	end
+})
+
+
+
+apex.categories.world:CreateModule({
+	Name = "Xray",
+	Callback = function(state)
+		local Workspace = game:GetService("Workspace")
+
+		if not apex._XrayState then
+			apex._XrayState = false
+			apex._XrayModifiedParts = {}
+		end
+
+		apex._XrayState = state
+
+		if apex._XrayState then
+			-- Apply to all current parts immediately
+			for _, part in ipairs(Workspace:GetDescendants()) do
+				if part:IsA("BasePart") and not apex._XrayModifiedParts[part] then
+					apex._XrayModifiedParts[part] = part.LocalTransparencyModifier
+					part.LocalTransparencyModifier = 0.5
+				end
+			end
+		else
+			-- Restore transparency when turning off
+			for part, original in pairs(apex._XrayModifiedParts) do
+				if part and part:IsA("BasePart") then
+					part.LocalTransparencyModifier = original or 0
+				end
+			end
+			table.clear(apex._XrayModifiedParts)
+		end
+
+		-- Frame loop to apply effect to new parts when active
+		if not apex._XrayLoop then
+			apex._XrayLoop = true
 			task.spawn(function()
 				while true do
-					task.wait()
-					if InfiniteJumpEnabled then
-						UserInputService.JumpRequest:Connect(function()
-							local char = LocalPlayer.Character
-							if not char then return end
-							local humanoid = char:FindFirstChildOfClass("Humanoid")
-							if humanoid and humanoid.Health > 0 then
-								humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+					task.wait(0.1) -- check every frame / adjust speed
+
+					if apex._XrayState then
+						for _, part in ipairs(Workspace:GetDescendants()) do
+							if part:IsA("BasePart") and not apex._XrayModifiedParts[part] then
+								apex._XrayModifiedParts[part] = part.LocalTransparencyModifier
+								part.LocalTransparencyModifier = 0.5
 							end
-						end)
+						end
+					else
+						task.wait() -- skip loop if off
 					end
 				end
 			end)
 		end
 	end
 })
+
+
+
+
