@@ -380,6 +380,16 @@ apex.categories.blatant:CreateModule({
 		local function resetTimer()
 			timer = 2.5
 		end
+		local function setJumpPower(value)
+			local char = LocalPlayer.Character
+			if not char then return end
+			local humanoid = char:FindFirstChildOfClass("Humanoid")
+			if not humanoid then return end
+
+			-- Make sure JumpPower is used instead of JumpHeight
+			humanoid.UseJumpPower = true
+			humanoid.JumpPower = value
+		end
 
 		local function updateTimer()
 			if touchingPlate then
@@ -391,7 +401,7 @@ apex.categories.blatant:CreateModule({
 				countdownLabel.Visible = true
 				backgroundBar.Visible = true
 				rgbBar.Visible = true
-				LocalPlayer.Character.Humanoid.JumpPower = 150
+				setJumpPower(100) -- <<<< sets correctly
 
 				-- Shrink horizontally left → right
 				rgbBar.Size = UDim2.new(timer / 5 * 2, 0, 1, 0)
@@ -403,8 +413,9 @@ apex.categories.blatant:CreateModule({
 				if countdownLabel then countdownLabel.Visible = false end
 				if backgroundBar then backgroundBar.Visible = false end
 				if rgbBar then rgbBar.Visible = false end
-				LocalPlayer.Character.Humanoid.JumpPower = 50
+				setJumpPower(50) -- <<<< reset properly
 			end
+
 		end
 
 		local function trackPlatformPosition()
@@ -471,7 +482,9 @@ apex.categories.blatant:CreateModule({
 	Name = "Speed",
 	Callback = function(state)
 		if state == true then
-			LocalPlayer.Character.Humanoid.WalkSpeed = 23
+			while wait() do
+				LocalPlayer.Character.Humanoid.WalkSpeed = 23
+			end
 		else
 			LocalPlayer.Character.Humanoid.WalkSpeed = 20
 		end
@@ -489,94 +502,6 @@ apex.categories.world:CreateModule({
 	end
 })
 
-apex.categories.render:CreateModule({
-	Name = "ESP",
-	Callback = function(state)
-		--// Services
-		local Players = game:GetService("Players")
-		local LocalPlayer = Players.LocalPlayer
-		local Camera = workspace.CurrentCamera
-		local RunService = game:GetService("RunService")
-
-		--// ESP Settings
-		local BoxColor = Color3.fromRGB(0, 255, 0)
-		local BoxThickness = 1.5
-		local BoxTransparency = 1
-
-		-- Store connections + boxes for cleanup
-		local connections = {}
-		local boxes = {}
-
-		local function removeESP()
-			for _, box in pairs(boxes) do
-				if box then
-					box:Remove()
-				end
-			end
-			boxes = {}
-
-			for _, conn in pairs(connections) do
-				conn:Disconnect()
-			end
-			connections = {}
-		end
-
-		if state then
-			-- Function to make a box for a player
-			local function createBox(player)
-				if player == LocalPlayer then return end
-				local box = Drawing.new("Square")
-				box.Color = BoxColor
-				box.Thickness = BoxThickness
-				box.Filled = false
-				box.Transparency = BoxTransparency
-				boxes[player] = box
-
-				local conn = RunService.RenderStepped:Connect(function()
-					if state and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
-						local rootPart = player.Character.HumanoidRootPart
-						local vector, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-
-						if onScreen then
-							local scale = (Camera.CFrame.Position - rootPart.Position).Magnitude
-							local size = math.clamp(3000 / scale, 2, 300)
-							box.Size = Vector2.new(size, size * 1.5)
-							box.Position = Vector2.new(vector.X - box.Size.X / 2, vector.Y - box.Size.Y / 2)
-							box.Visible = true
-						else
-							box.Visible = false
-						end
-					else
-						box.Visible = false
-					end
-				end)
-
-				table.insert(connections, conn)
-			end
-
-			-- Apply ESP to all current + new players
-			for _, player in pairs(Players:GetPlayers()) do
-				createBox(player)
-			end
-
-			local playerAddedConn = Players.PlayerAdded:Connect(function(player)
-				createBox(player)
-			end)
-			table.insert(connections, playerAddedConn)
-
-			local playerRemovingConn = Players.PlayerRemoving:Connect(function(player)
-				if boxes[player] then
-					boxes[player]:Remove()
-					boxes[player] = nil
-				end
-			end)
-			table.insert(connections, playerRemovingConn)
-
-		else
-			removeESP()
-		end
-	end
-})
 
 apex.categories.render:CreateModule({
 	Name = "LineESP",
@@ -606,20 +531,18 @@ apex.categories.render:CreateModule({
 			conn = RunService.RenderStepped:Connect(function()
 				clearLines()
 
-				local myChar = LocalPlayer.Character
-				local myHead = myChar and myChar:FindFirstChild("Head")
-				if not myHead then return end
-
-				local headScreenPos, onScreenHead = Camera:WorldToViewportPoint(myHead.Position)
+				-- Get screen center
+				local viewportSize = Camera.ViewportSize
+				local screenCenter = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
 
 				for _, player in ipairs(Players:GetPlayers()) do
 					if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 						local enemyHRP = player.Character.HumanoidRootPart
 						local enemyScreenPos, enemyOnScreen = Camera:WorldToViewportPoint(enemyHRP.Position)
 
-						if onScreenHead and enemyOnScreen then
+						if enemyOnScreen then
 							local line = Drawing.new("Line")
-							line.From = Vector2.new(headScreenPos.X, headScreenPos.Y)
+							line.From = screenCenter
 							line.To = Vector2.new(enemyScreenPos.X, enemyScreenPos.Y)
 							line.Color = Color3.fromRGB(22, 144, 197)
 							line.Thickness = 2
@@ -642,6 +565,165 @@ apex.categories.render:CreateModule({
 				conn = nil
 			end
 			clearLines()
+		end
+	end
+})
+
+apex.categories.blatant:CreateModule({
+	Name = "Spider",
+	Callback = function(state)
+		--// Services
+		local Players = game:GetService("Players")
+		local RunService = game:GetService("RunService")
+		local LocalPlayer = Players.LocalPlayer
+
+		local conn
+
+		-- Helper to enable spider climbing
+		local function enableSpider()
+			conn = RunService.Heartbeat:Connect(function()
+				local char = LocalPlayer.Character
+				local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				if not (char and humanoid and root) then return end
+
+				-- Raycast forward from HumanoidRootPart
+				local params = RaycastParams.new()
+				params.FilterDescendantsInstances = {char}
+				params.FilterType = Enum.RaycastFilterType.Blacklist
+
+				local result = workspace:Raycast(root.Position, root.CFrame.LookVector * 3, params)
+
+				-- If walking into a wall, push upwards
+				if result and humanoid.MoveDirection.Magnitude > 0 then
+					root.Velocity = Vector3.new(root.Velocity.X, 40, root.Velocity.Z)
+				end
+			end)
+		end
+
+		-- Toggle ON/OFF
+		if state == true then
+			if not conn then
+				enableSpider()
+			end
+		else
+			if conn then
+				conn:Disconnect()
+				conn = nil
+			end
+		end
+	end
+})
+
+
+apex.categories.render:CreateModule({
+	Name = "ESP",
+	Callback = function(state)
+		--// Services
+		local Players = game:GetService("Players")
+		local RunService = game:GetService("RunService")
+		local LocalPlayer = Players.LocalPlayer
+		local Camera = workspace.CurrentCamera
+
+		--// Storage
+		local connections = {}
+		local boxes = {}
+
+		-- Helper: Clear all ESP drawings
+		local function clearESP()
+			for _, box in pairs(boxes) do
+				if box.Box then box.Box:Remove() end
+				if box.Outline then box.Outline:Remove() end
+			end
+			table.clear(boxes)
+			for _, conn in pairs(connections) do
+				conn:Disconnect()
+			end
+			table.clear(connections)
+		end
+
+		-- Helper: Add ESP for a player
+		local function addESP(player)
+			local outline = Drawing.new("Square")
+			outline.Visible = false
+			outline.Color = Color3.new(0, 0, 0)
+			outline.Thickness = 2
+			outline.Transparency = 1
+			outline.Filled = false
+
+			local box = Drawing.new("Square")
+			box.Visible = false
+			box.Color = Color3.new(1, 1, 1)
+			box.Thickness = 1
+			box.Transparency = 1
+			box.Filled = false
+
+			boxes[player] = {Box = box, Outline = outline}
+
+			local conn = RunService.RenderStepped:Connect(function()
+				if player.Character and player.Character:FindFirstChild("Humanoid") and player.Character:FindFirstChild("HumanoidRootPart") and player ~= LocalPlayer and player.Character.Humanoid.Health > 0 then
+					local root = player.Character.HumanoidRootPart
+					local head = player.Character:FindFirstChild("Head")
+					if not head then return end
+
+					local headPos, hOnScreen = Camera:WorldToViewportPoint(head.Position + Vector3.new(0,0,0))
+					local rootPos, rOnScreen = Camera:WorldToViewportPoint(root.Position)
+					local legPos, lOnScreen = Camera:WorldToViewportPoint(root.Position - Vector3.new(0,3,0))
+
+					local onScreen = hOnScreen and rOnScreen and lOnScreen and rootPos.Z > 0
+
+					if onScreen then
+						local height = headPos.Y - legPos.Y
+						local width = height / 2
+
+						outline.Size = Vector2.new(width, height)
+						outline.Position = Vector2.new(rootPos.X - (width / 2), legPos.Y)
+						outline.Visible = true
+
+						box.Size = Vector2.new(width, height)
+						box.Position = Vector2.new(rootPos.X - (width / 2), legPos.Y)
+						box.Visible = true
+
+						if player.TeamColor == LocalPlayer.TeamColor then
+							box.Color = Color3.new(0,1,0) -- green teammate
+						else
+							box.Color = Color3.new(1,0,0) -- red enemy
+						end
+					else
+						outline.Visible = false
+						box.Visible = false
+					end
+				else
+					outline.Visible = false
+					box.Visible = false
+				end
+			end)
+
+			table.insert(connections, conn)
+		end
+
+		-- Toggle logic
+		if state == true then
+			-- Add for existing players
+			for _, p in ipairs(Players:GetPlayers()) do
+				if p ~= LocalPlayer then
+					addESP(p)
+				end
+			end
+			-- New players
+			table.insert(connections, Players.PlayerAdded:Connect(function(p)
+				addESP(p)
+			end))
+			-- Cleanup when players leave
+			table.insert(connections, Players.PlayerRemoving:Connect(function(p)
+				if boxes[p] then
+					if boxes[p].Box then boxes[p].Box:Remove() end
+					if boxes[p].Outline then boxes[p].Outline:Remove() end
+					boxes[p] = nil
+				end
+			end))
+		else
+			clearESP()
 		end
 	end
 })
