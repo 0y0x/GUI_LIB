@@ -263,8 +263,8 @@ local LocalPlayer = Players.LocalPlayer
 local healthLabel = Instance.new("TextLabel")
 healthLabel.Name = "HealthLabel"
 healthLabel.Size = UDim2.new(0, 150, 0, 50)
-healthLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-healthLabel.Position = UDim2.new(0.5, 0, 0.75, 0) -- bottom center
+healthLabel.AnchorPoint = Vector2.new(0.5, 1)
+healthLabel.Position = UDim2.new(0.5, 0, 0.6, 0)
 healthLabel.BackgroundTransparency = 0.5
 healthLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 healthLabel.TextColor3 = Color3.fromRGB(46, 255, 23)
@@ -351,13 +351,13 @@ apex.categories.blatant:CreateModule({
 			countdownLabel.Text = "2.5s"
 			countdownLabel.Visible = false
 			countdownLabel.Parent = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("ApexUI")
-			
+
 			TextStroke = Instance.new("UIStroke")
 			TextStroke.Parent = countdownLabel
 
 			-- Background bar
 			backgroundBar = Instance.new("Frame")
-			backgroundBar.Size = UDim2.new(1, 0, 1, 0) -- your requested size
+			backgroundBar.Size = UDim2.new(1, 0, 1, 0)
 			backgroundBar.AnchorPoint = Vector2.new(0.5, 0)
 			backgroundBar.Position = UDim2.new(0.5, 0, 1, 5)
 			backgroundBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -433,7 +433,7 @@ apex.categories.blatant:CreateModule({
 			end
 		end
 
-		if state then
+		if state == true then
 			createPlatform()
 			createTimerUI()
 			updateConnection = RunService.RenderStepped:Connect(function()
@@ -441,8 +441,137 @@ apex.categories.blatant:CreateModule({
 				updateTimer()
 			end)
 		else
-			if platform then platform:Destroy() end
-			if updateConnection then updateConnection:Disconnect() end
+			if updateConnection then
+				updateConnection:Disconnect()
+				updateConnection = nil
+			end
+			if platform then
+				platform:Destroy()
+				platform = nil
+			end
+			if countdownLabel then
+				countdownLabel:Destroy()
+				countdownLabel = nil
+			end
+			if backgroundBar then
+				backgroundBar:Destroy()
+				backgroundBar = nil
+			end
+			if rgbBar then
+				rgbBar:Destroy()
+				rgbBar = nil
+			end
+		end
+	end
+})
+
+apex.categories.blatant:CreateModule({
+	Name = "Speed",
+	Callback = function(state)
+		if state == true then
+			LocalPlayer.Character.Humanoid.WalkSpeed = 23
+		else
+			LocalPlayer.Character.Humanoid.WalkSpeed = 20
+		end
+	end
+})
+
+apex.categories.world:CreateModule({
+	Name = "Gravity",
+	Callback = function(state)
+		if state == true then
+			workspace.Gravity = 75
+		else
+			workspace.Gravity = 196.2
+		end
+	end
+})
+
+apex.categories.render:CreateModule({
+	Name = "ESP",
+	Callback = function(state)
+		--// Services
+		local Players = game:GetService("Players")
+		local LocalPlayer = Players.LocalPlayer
+		local Camera = workspace.CurrentCamera
+		local RunService = game:GetService("RunService")
+
+		--// ESP Settings
+		local BoxColor = Color3.fromRGB(0, 255, 0)
+		local BoxThickness = 1.5
+		local BoxTransparency = 1
+
+		-- Store connections + boxes for cleanup
+		local connections = {}
+		local boxes = {}
+
+		local function removeESP()
+			for _, box in pairs(boxes) do
+				if box then
+					box:Remove()
+				end
+			end
+			boxes = {}
+
+			for _, conn in pairs(connections) do
+				conn:Disconnect()
+			end
+			connections = {}
+		end
+
+		if state then
+			-- Function to make a box for a player
+			local function createBox(player)
+				if player == LocalPlayer then return end
+				local box = Drawing.new("Square")
+				box.Color = BoxColor
+				box.Thickness = BoxThickness
+				box.Filled = false
+				box.Transparency = BoxTransparency
+				boxes[player] = box
+
+				local conn = RunService.RenderStepped:Connect(function()
+					if state and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+						local rootPart = player.Character.HumanoidRootPart
+						local vector, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+
+						if onScreen then
+							local scale = (Camera.CFrame.Position - rootPart.Position).Magnitude
+							local size = math.clamp(3000 / scale, 2, 300)
+							box.Size = Vector2.new(size, size * 1.5)
+							box.Position = Vector2.new(vector.X - box.Size.X / 2, vector.Y - box.Size.Y / 2)
+							box.Visible = true
+						else
+							box.Visible = false
+						end
+					else
+						box.Visible = false
+					end
+				end)
+
+				table.insert(connections, conn)
+			end
+
+			-- Apply ESP to all current + new players
+			for _, player in pairs(Players:GetPlayers()) do
+				createBox(player)
+			end
+
+			local playerAddedConn = Players.PlayerAdded:Connect(function(player)
+				createBox(player)
+			end)
+			table.insert(connections, playerAddedConn)
+
+			local playerRemovingConn = Players.PlayerRemoving:Connect(function(player)
+				if boxes[player] then
+					boxes[player]:Remove()
+					boxes[player] = nil
+				end
+			end)
+			table.insert(connections, playerRemovingConn)
+
+		else
+			removeESP()
 		end
 	end
 })
