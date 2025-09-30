@@ -179,13 +179,12 @@ apex.categories.combat:CreateModule({
 
 			-- Persistent loop
 			task.spawn(function()
-				while true do
-					if sprintEnabled and SprintController then
+				if sprintEnabled and SprintController then
+					while wait()do 
 						SprintController:startSprinting()
-					elseif not sprintEnabled and SprintController then
-						SprintController:stopSprinting()
 					end
-					task.wait(0.1)
+				elseif not sprintEnabled and SprintController then
+					SprintController:stopSprinting()
 				end
 			end)
 
@@ -209,7 +208,7 @@ local LocalPlayer = Players.LocalPlayer
 
 local AutoClicker = {}
 local Mode = { Value = "Tool" } -- Default mode
-local CPS = { GetRandomValue = function() return math.random(20, 25) end } -- Default CPS
+local CPS = { GetRandomValue = function() return math.random(50, 25) end } -- Default CPS
 
 AutoClicker = apex.categories.combat:CreateModule({
 	Name = "AutoClicker",
@@ -307,9 +306,13 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
+local AntiVoidEnabled = false
+
 apex.categories.blatant:CreateModule({
 	Name = "AntiVoid",
 	Callback = function(state)
+		AntiVoidEnabled = state
+
 		local platform
 		local countdownLabel
 		local rgbBar
@@ -318,28 +321,26 @@ apex.categories.blatant:CreateModule({
 		local timer = 2.5
 		local touchingPlate = false
 		local lastTouchedObject = nil
-		local updateConnection
 
 		local function createPlatform()
-			if platform then platform:Destroy() end
-
-			platform = Instance.new("Part")
-			platform.Size = Vector3.new(100000, 0.1, 100000)
-			platform.Anchored = true
-			platform.Material = Enum.Material.Ice
-			platform.Transparency = 0.9
-			platform.Color = Color3.fromRGB(255, 255, 255)
-			platform.TopSurface = Enum.SurfaceType.Smooth
-			platform.BottomSurface = Enum.SurfaceType.Smooth
-			platform.Position = Vector3.new(0, 0, 0)
-			platform.Name = "AntiVoidPlatform"
-			platform.Parent = workspace
+			if not platform or not platform.Parent then
+				platform = Instance.new("Part")
+				platform.Size = Vector3.new(100000, 0.1, 100000)
+				platform.Anchored = true
+				platform.Material = Enum.Material.Ice
+				platform.Transparency = 0.9
+				platform.Color = Color3.fromRGB(255, 255, 255)
+				platform.TopSurface = Enum.SurfaceType.Smooth
+				platform.BottomSurface = Enum.SurfaceType.Smooth
+				platform.Position = Vector3.new(0, 0, 0)
+				platform.Name = "AntiVoidPlatform"
+				platform.Parent = workspace
+			end
 		end
 
 		local function createTimerUI()
 			if countdownLabel then return end
 
-			-- Timer text
 			countdownLabel = Instance.new("TextLabel")
 			countdownLabel.Size = UDim2.new(0, 250, 0, 20)
 			countdownLabel.AnchorPoint = Vector2.new(0.5, 0)
@@ -355,7 +356,6 @@ apex.categories.blatant:CreateModule({
 			TextStroke = Instance.new("UIStroke")
 			TextStroke.Parent = countdownLabel
 
-			-- Background bar
 			backgroundBar = Instance.new("Frame")
 			backgroundBar.Size = UDim2.new(1, 0, 1, 0)
 			backgroundBar.AnchorPoint = Vector2.new(0.5, 0)
@@ -366,10 +366,9 @@ apex.categories.blatant:CreateModule({
 			backgroundBar.Parent = countdownLabel
 			backgroundBar.Transparency = 0.5
 
-			-- RGB bar
 			rgbBar = Instance.new("Frame")
 			rgbBar.Size = UDim2.new(1, 0, 1, 0)
-			rgbBar.AnchorPoint = Vector2.new(0, 0) -- left side anchor so it shrinks rightwards
+			rgbBar.AnchorPoint = Vector2.new(0, 0)
 			rgbBar.Position = UDim2.new(0, 0, 0, 0)
 			rgbBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 			rgbBar.BorderSizePixel = 0
@@ -380,13 +379,12 @@ apex.categories.blatant:CreateModule({
 		local function resetTimer()
 			timer = 2.5
 		end
+
 		local function setJumpPower(value)
 			local char = LocalPlayer.Character
 			if not char then return end
 			local humanoid = char:FindFirstChildOfClass("Humanoid")
 			if not humanoid then return end
-
-			-- Make sure JumpPower is used instead of JumpHeight
 			humanoid.UseJumpPower = true
 			humanoid.JumpPower = value
 		end
@@ -401,21 +399,16 @@ apex.categories.blatant:CreateModule({
 				countdownLabel.Visible = true
 				backgroundBar.Visible = true
 				rgbBar.Visible = true
-				setJumpPower(100) -- <<<< sets correctly
-
-				-- Shrink horizontally left → right
+				setJumpPower(100)
 				rgbBar.Size = UDim2.new(timer / 5 * 2, 0, 1, 0)
-
-				-- RGB cycling
 				local t = tick() % 5
 				rgbBar.BackgroundColor3 = Color3.fromHSV(t / 5, 1, 1)
 			else
 				if countdownLabel then countdownLabel.Visible = false end
 				if backgroundBar then backgroundBar.Visible = false end
 				if rgbBar then rgbBar.Visible = false end
-				setJumpPower(50) -- <<<< reset properly
+				setJumpPower(50)
 			end
-
 		end
 
 		local function trackPlatformPosition()
@@ -446,37 +439,40 @@ apex.categories.blatant:CreateModule({
 			end
 		end
 
-		if state == true then
-			createPlatform()
-			createTimerUI()
-			updateConnection = RunService.RenderStepped:Connect(function()
-				trackPlatformPosition()
-				updateTimer()
+		if not apex.AntiVoidLoop then
+			apex.AntiVoidLoop = true
+			task.spawn(function()
+				while true do
+					task.wait()
+					if AntiVoidEnabled then
+						createPlatform()
+						createTimerUI()
+						trackPlatformPosition()
+						updateTimer()
+					else
+						if platform then
+							platform:Destroy()
+							platform = nil
+						end
+						if countdownLabel then
+							countdownLabel:Destroy()
+							countdownLabel = nil
+						end
+						if backgroundBar then
+							backgroundBar:Destroy()
+							backgroundBar = nil
+						end
+						if rgbBar then
+							rgbBar:Destroy()
+							rgbBar = nil
+						end
+					end
+				end
 			end)
-		else
-			if updateConnection then
-				updateConnection:Disconnect()
-				updateConnection = nil
-			end
-			if platform then
-				platform:Destroy()
-				platform = nil
-			end
-			if countdownLabel then
-				countdownLabel:Destroy()
-				countdownLabel = nil
-			end
-			if backgroundBar then
-				backgroundBar:Destroy()
-				backgroundBar = nil
-			end
-			if rgbBar then
-				rgbBar:Destroy()
-				rgbBar = nil
-			end
 		end
 	end
 })
+
 
 apex.categories.blatant:CreateModule({
 	Name = "Speed",
@@ -569,51 +565,50 @@ apex.categories.render:CreateModule({
 	end
 })
 
+
+local SpiderEnabled = false
+
 apex.categories.blatant:CreateModule({
 	Name = "Spider",
 	Callback = function(state)
-		--// Services
+		-- Services
 		local Players = game:GetService("Players")
 		local RunService = game:GetService("RunService")
 		local LocalPlayer = Players.LocalPlayer
 
-		local conn
+		SpiderEnabled = state
 
-		-- Helper to enable spider climbing
-		local function enableSpider()
-			conn = RunService.Heartbeat:Connect(function()
-				local char = LocalPlayer.Character
-				local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-				local root = char and char:FindFirstChild("HumanoidRootPart")
-				if not (char and humanoid and root) then return end
+		-- Main loop (runs once)
+		if not apex.SpiderLoop then
+			apex.SpiderLoop = true
+			task.spawn(function()
+				while apex.SpiderLoop do
+					task.wait()
 
-				-- Raycast forward from HumanoidRootPart
-				local params = RaycastParams.new()
-				params.FilterDescendantsInstances = {char}
-				params.FilterType = Enum.RaycastFilterType.Blacklist
+					if SpiderEnabled then
+						local char = LocalPlayer.Character
+						local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+						local root = char and char:FindFirstChild("HumanoidRootPart")
+						if not (char and humanoid and root) then continue end
 
-				local result = workspace:Raycast(root.Position, root.CFrame.LookVector * 3, params)
+						-- Raycast forward from HumanoidRootPart
+						local params = RaycastParams.new()
+						params.FilterDescendantsInstances = {char}
+						params.FilterType = Enum.RaycastFilterType.Blacklist
 
-				-- If walking into a wall, push upwards
-				if result and humanoid.MoveDirection.Magnitude > 0 then
-					root.Velocity = Vector3.new(root.Velocity.X, 40, root.Velocity.Z)
+						local result = workspace:Raycast(root.Position, root.CFrame.LookVector * 3, params)
+
+						-- If walking into a wall, push upwards
+						if result and humanoid.MoveDirection.Magnitude > 0 then
+							root.Velocity = Vector3.new(root.Velocity.X, 40, root.Velocity.Z)
+						end
+					end
 				end
 			end)
 		end
-
-		-- Toggle ON/OFF
-		if state == true then
-			if not conn then
-				enableSpider()
-			end
-		else
-			if conn then
-				conn:Disconnect()
-				conn = nil
-			end
-		end
 	end
 })
+
 
 
 apex.categories.render:CreateModule({
@@ -644,13 +639,6 @@ apex.categories.render:CreateModule({
 
 		-- Helper: Add ESP for a player
 		local function addESP(player)
-			local outline = Drawing.new("Square")
-			outline.Visible = false
-			outline.Color = Color3.new(0, 0, 0)
-			outline.Thickness = 2
-			outline.Transparency = 1
-			outline.Filled = false
-
 			local box = Drawing.new("Square")
 			box.Visible = false
 			box.Color = Color3.new(1, 1, 1)
@@ -685,9 +673,9 @@ apex.categories.render:CreateModule({
 						box.Visible = true
 
 						if player.TeamColor == LocalPlayer.TeamColor then
-							box.Color = Color3.new(0,1,0) -- green teammate
+							box.Color = LocalPlayer.TeamColor.Color -- green teammate
 						else
-							box.Color = Color3.new(1,0,0) -- red enemy
+							box.Color = LocalPlayer.TeamColor.Color -- red enemy
 						end
 					else
 						outline.Visible = false
@@ -727,3 +715,51 @@ apex.categories.render:CreateModule({
 		end
 	end
 })
+
+
+-- NoFall state variable
+local NoFallEnabled = false
+
+apex.categories.utility:CreateModule({
+	Name = "NoFall",
+	Callback = function(state)
+		-- Services
+		local Players = game:GetService("Players")
+		local RunService = game:GetService("RunService")
+		local LocalPlayer = Players.LocalPlayer
+
+		NoFallEnabled = state
+
+		-- Main loop (runs once)
+		if not apex.NoFallLoop then
+			apex.NoFallLoop = true
+			task.spawn(function()
+				while apex.NoFallLoop do
+					task.wait()
+
+					if NoFallEnabled then
+						local char = LocalPlayer.Character
+						local root = char and char:FindFirstChild("HumanoidRootPart")
+						if char and root then
+							if root.Velocity.Y < -5 then
+								local params = RaycastParams.new()
+								params.FilterDescendantsInstances = {char}
+								params.FilterType = Enum.RaycastFilterType.Blacklist
+
+								local result = workspace:Raycast(root.Position, Vector3.new(0, -1000, 0), params)
+								if result then
+									local fallDist = (root.Position.Y - result.Position.Y)
+
+									if fallDist >= 19 then
+										root.Velocity = Vector3.new(root.Velocity.X, -40, root.Velocity.Z)
+									end
+								end
+							end
+						end
+					end
+				end
+			end)
+		end
+	end
+})
+
