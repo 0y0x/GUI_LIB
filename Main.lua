@@ -308,7 +308,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
 apex.categories.blatant:CreateModule({
-	Name = "SmartAntiVoidPlate",
+	Name = "AntiVoid",
 	Callback = function(state)
 		local platform
 		local countdownLabel
@@ -342,8 +342,8 @@ apex.categories.blatant:CreateModule({
 			-- Timer text
 			countdownLabel = Instance.new("TextLabel")
 			countdownLabel.Size = UDim2.new(0, 250, 0, 20)
-			countdownLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-			countdownLabel.Position = UDim2.new(0.5, 0, 0.88, 0)
+			countdownLabel.AnchorPoint = Vector2.new(0.5, 0)
+			countdownLabel.Position = UDim2.new(0.5, 0, 0.75, 0)
 			countdownLabel.BackgroundTransparency = 1
 			countdownLabel.TextScaled = true
 			countdownLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -391,6 +391,7 @@ apex.categories.blatant:CreateModule({
 				countdownLabel.Visible = true
 				backgroundBar.Visible = true
 				rgbBar.Visible = true
+				LocalPlayer.Character.Humanoid.JumpPower = 150
 
 				-- Shrink horizontally left → right
 				rgbBar.Size = UDim2.new(timer / 5 * 2, 0, 1, 0)
@@ -402,6 +403,7 @@ apex.categories.blatant:CreateModule({
 				if countdownLabel then countdownLabel.Visible = false end
 				if backgroundBar then backgroundBar.Visible = false end
 				if rgbBar then rgbBar.Visible = false end
+				LocalPlayer.Character.Humanoid.JumpPower = 50
 			end
 		end
 
@@ -572,6 +574,74 @@ apex.categories.render:CreateModule({
 
 		else
 			removeESP()
+		end
+	end
+})
+
+apex.categories.render:CreateModule({
+	Name = "LineESP",
+	Callback = function(state)
+		--// Services
+		local Players = game:GetService("Players")
+		local RunService = game:GetService("RunService")
+		local LocalPlayer = Players.LocalPlayer
+		local Camera = workspace.CurrentCamera
+
+		--// Line storage
+		local lines = {}
+		local conn
+
+		-- Clear old lines
+		local function clearLines()
+			for _, line in ipairs(lines) do
+				if line and line.Remove then
+					line:Remove()
+				end
+			end
+			table.clear(lines)
+		end
+
+		-- Drawing loop
+		local function drawLines()
+			conn = RunService.RenderStepped:Connect(function()
+				clearLines()
+
+				local myChar = LocalPlayer.Character
+				local myHead = myChar and myChar:FindFirstChild("Head")
+				if not myHead then return end
+
+				local headScreenPos, onScreenHead = Camera:WorldToViewportPoint(myHead.Position)
+
+				for _, player in ipairs(Players:GetPlayers()) do
+					if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+						local enemyHRP = player.Character.HumanoidRootPart
+						local enemyScreenPos, enemyOnScreen = Camera:WorldToViewportPoint(enemyHRP.Position)
+
+						if onScreenHead and enemyOnScreen then
+							local line = Drawing.new("Line")
+							line.From = Vector2.new(headScreenPos.X, headScreenPos.Y)
+							line.To = Vector2.new(enemyScreenPos.X, enemyScreenPos.Y)
+							line.Color = Color3.fromRGB(22, 144, 197)
+							line.Thickness = 2
+							line.Transparency = 1
+							line.Visible = true
+							table.insert(lines, line)
+						end
+					end
+				end
+			end)
+		end
+
+		-- Toggle ON
+		if state == true then
+			drawLines()
+		else
+			-- Toggle OFF
+			if conn then
+				conn:Disconnect()
+				conn = nil
+			end
+			clearLines()
 		end
 	end
 })
