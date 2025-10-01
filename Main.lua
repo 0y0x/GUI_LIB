@@ -965,14 +965,21 @@ apex.categories.utility:CreateModule({
 })
 
 local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
+
+local AutoLockEnabled = false
 
 local function getNearestPlayer(maxDist)
 	local nearest, dist = nil, maxDist
+	local myChar = LocalPlayer.Character
+	local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+	if not myHRP then return nil end
+
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 			local hrp = player.Character.HumanoidRootPart
-			local mag = (LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
+			local mag = (myHRP.Position - hrp.Position).Magnitude
 			if mag < dist then
 				nearest, dist = player, mag
 			end
@@ -981,35 +988,49 @@ local function getNearestPlayer(maxDist)
 	return nearest
 end
 
-apex.categories.blatant:CreateModule({
-	Name = "KillAura",
+apex.categories.combat:CreateModule({
+	Name = "AutoLock",
 	Callback = function(state)
-		if state then
+		AutoLockEnabled = state
+
+		-- Only start loop once per enable
+		if AutoLockEnabled and not apex._AutoLockLoop then
+			apex._AutoLockLoop = true
 			task.spawn(function()
-				while state do
+				while AutoLockEnabled do
+					-- safety: ensure character exists
 					local char = LocalPlayer.Character
 					local root = char and char:FindFirstChild("HumanoidRootPart")
 					local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-
 					if root and humanoid and humanoid.Health > 0 then
 						local target = getNearestPlayer(20)
 						if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
 							local targetRoot = target.Character.HumanoidRootPart
 
-							-- Face target
-							local lookVector = (targetRoot.Position - root.Position).Unit
-							root.CFrame = CFrame.new(root.Position, root.Position + Vector3.new(lookVector.X, 0, lookVector.Z))
+							-- Face target (only yaw)
+							local dir = (targetRoot.Position - root.Position)
+							local look = Vector3.new(dir.X, 0, dir.Z)
+							if look.Magnitude > 0 then
+								root.CFrame = CFrame.new(root.Position, root.Position + look.Unit)
+							end
 
-							-- Spam left click (50/sec)
-							for i = 1, 5 do -- 5 clicks per 0.1 sec = 50/sec
-								mouse1click()
+							-- Spam left click via VirtualUser (mobile-safe)
+							-- do 5 clicks per 0.1s => 50 clicks/sec
+							for i = 1, 5 do
+								-- Use a neutral screen position (0,0) so no cursor movement
+								VirtualUser:Button1Down(Vector2.new(0, 0))
+								VirtualUser:Button1Up(Vector2.new(0, 0))
 							end
 						end
 					end
 
-					task.wait(0.1) -- 10 loops per second
+					task.wait(0.1)
 				end
+
+				-- loop finished; clear loop flag so it can be started again later
+				apex._AutoLockLoop = nil
 			end)
 		end
 	end
 })
+
