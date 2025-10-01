@@ -477,29 +477,57 @@ apex.categories.blatant:CreateModule({
 	end
 })
 
+local speedEnabled = false
 
 apex.categories.blatant:CreateModule({
 	Name = "Speed",
 	Callback = function(state)
-		if state == true then
-			while wait() do
-				LocalPlayer.Character.Humanoid.WalkSpeed = 23
-			end
+		speedEnabled = state
+
+		if state then
+			task.spawn(function()
+				while speedEnabled do
+					if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+						LocalPlayer.Character.Humanoid.WalkSpeed = 23
+					end
+					task.wait(0.1) -- slight delay so we don't freeze
+				end
+				-- Reset speed when disabled
+				if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+					LocalPlayer.Character.Humanoid.WalkSpeed = 20
+				end
+			end)
 		else
-			LocalPlayer.Character.Humanoid.WalkSpeed = 20
+			speedEnabled = false
 		end
 	end
 })
 
+
+
+
+
+local gravityenabled = false
 apex.categories.world:CreateModule({
 	Name = "Gravity",
 	Callback = function(state)
-		if state == true then
-			while wait() do
-				workspace.Gravity = 75
-			end
+		gravityenabled = state
+
+		if state then
+			task.spawn(function()
+				while gravityenabled do
+					if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+						workspace.Gravity = 75
+					end
+					task.wait(0.1) -- slight delay so we don't freeze
+				end
+				-- Reset speed when disabled
+				if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+					workspace.Gravity = 192.8
+				end
+			end)
 		else
-			workspace.Gravity = 196.2
+			gravityenabled = false
 		end
 	end
 })
@@ -723,51 +751,50 @@ apex.categories.render:CreateModule({
 
 
 
--- NoFall state variable
 local NoFallEnabled = false
+local NoFallLoopActive = false
 
 apex.categories.utility:CreateModule({
 	Name = "NoFall",
 	Callback = function(state)
-		-- Services
-		local Players = game:GetService("Players")
-		local RunService = game:GetService("RunService")
-		local LocalPlayer = Players.LocalPlayer
-
 		NoFallEnabled = state
 
-		-- Main loop (runs once)
-		if not apex.NoFallLoop then
-			apex.NoFallLoop = true
+		if state and not NoFallLoopActive then
+			NoFallLoopActive = true
+
 			task.spawn(function()
-				while apex.NoFallLoop do
+				while NoFallEnabled do
 					task.wait()
 
-					if NoFallEnabled then
-						local char = LocalPlayer.Character
-						local root = char and char:FindFirstChild("HumanoidRootPart")
-						if char and root then
-							if root.Velocity.Y < -5 then
-								local params = RaycastParams.new()
-								params.FilterDescendantsInstances = {char}
-								params.FilterType = Enum.RaycastFilterType.Blacklist
+					local char = game.Players.LocalPlayer.Character
+					local root = char and char:FindFirstChild("HumanoidRootPart")
+					if char and root then
+						if root.Velocity.Y < -5 then
+							local params = RaycastParams.new()
+							params.FilterDescendantsInstances = {char}
+							params.FilterType = Enum.RaycastFilterType.Blacklist
 
-								local result = workspace:Raycast(root.Position, Vector3.new(0, -1000, 0), params)
-								if result then
-									local fallDist = (root.Position.Y - result.Position.Y)
+							local result = workspace:Raycast(root.Position, Vector3.new(0, -1000, 0), params)
+							if result then
+								local fallDist = (root.Position.Y - result.Position.Y)
 
-									if fallDist >= 1 then
-										root.Velocity = Vector3.new(root.Velocity.X, -60, root.Velocity.Z)
-									end
+								if fallDist >= 1 then
+									root.Velocity = Vector3.new(root.Velocity.X, -60, root.Velocity.Z) -- KEEP original value
 								end
 							end
 						end
 					end
 				end
+
+				NoFallLoopActive = false -- stops loop when turned off
 			end)
+		elseif not state then
+			NoFallEnabled = false
 		end
 	end
 })
+
+
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -918,6 +945,71 @@ apex.categories.world:CreateModule({
 	end
 })
 
+local connections = {}
 
+apex.categories.utility:CreateModule({
+	Name = "AntiAFK",
+	Callback = function(state)
+		if state then
+			for _, v in ipairs(getconnections(game.Players.LocalPlayer.Idled)) do
+				table.insert(connections, v)
+				v:Disable()
+			end
+		else
+			for _, v in ipairs(connections) do
+				v:Enable()
+			end
+			table.clear(connections)
+		end
+	end
+})
 
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 
+local function getNearestPlayer(maxDist)
+	local nearest, dist = nil, maxDist
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			local hrp = player.Character.HumanoidRootPart
+			local mag = (LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
+			if mag < dist then
+				nearest, dist = player, mag
+			end
+		end
+	end
+	return nearest
+end
+
+apex.categories.blatant:CreateModule({
+	Name = "KillAura",
+	Callback = function(state)
+		if state then
+			task.spawn(function()
+				while state do
+					local char = LocalPlayer.Character
+					local root = char and char:FindFirstChild("HumanoidRootPart")
+					local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+
+					if root and humanoid and humanoid.Health > 0 then
+						local target = getNearestPlayer(20)
+						if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+							local targetRoot = target.Character.HumanoidRootPart
+
+							-- Face target
+							local lookVector = (targetRoot.Position - root.Position).Unit
+							root.CFrame = CFrame.new(root.Position, root.Position + Vector3.new(lookVector.X, 0, lookVector.Z))
+
+							-- Spam left click (50/sec)
+							for i = 1, 5 do -- 5 clicks per 0.1 sec = 50/sec
+								mouse1click()
+							end
+						end
+					end
+
+					task.wait(0.1) -- 10 loops per second
+				end
+			end)
+		end
+	end
+})
