@@ -988,62 +988,38 @@ local function getNearestPlayer(maxDist)
 	return nearest
 end
 
-local AutoClickerEnabled = false
-local AutoClickerThread
+-- Example of how Vape grabs Bedwars modules
+local KnitClient = debug.getupvalue(require(game:GetService("ReplicatedStorage").rbxts_include.node_modules["@easy-games"].knit).KnitClient, 1)
 
--- You’ll need to grab Knit + BedWars controllers like Vape does
-local Knit
-repeat
-	pcall(function()
-		Knit = debug.getupvalue(require(game.Players.LocalPlayer.PlayerScripts.TS.knit).setup, 9)
-	end)
-	task.wait()
-until Knit and Knit.Controllers
+local Controllers = {}
+for _, v in pairs(debug.getupvalue(KnitClient.Start, 1)) do
+	Controllers[v.Name] = v
+end
 
-local SwordController = Knit.Controllers.SwordController
-local BlockPlacementController = Knit.Controllers.BlockPlacementController
-local BlockCpsController = Knit.Controllers.BlockCpsController
-local AppController = Knit.Controllers.AppController
-local UILayers = require(game.Players.LocalPlayer.PlayerScripts.TS.ui["ui-layers"]).UILayers
+-- expose them
+bedwars = {}
+bedwars.SwordController = Controllers.SwordController
+bedwars.BlockPlacementController = Controllers.BlockPlacementController
+bedwars.AppController = Controllers.AppController
 
-apex.categories.combat:CreateModule({
-	Name = "AutoClicker",
+--// Services
+local old
+
+apex.categories.blatant:CreateModule({
+	Name = "NoClickDelay",
 	Callback = function(state)
-		AutoClickerEnabled = state
-
 		if state then
-			if AutoClickerThread then task.cancel(AutoClickerThread) end
-
-			AutoClickerThread = task.spawn(function()
-				while AutoClickerEnabled do
-					-- Skip if menu/layer is open
-					if not AppController:isLayerOpen(UILayers.MAIN) then
-						local store = require(game.Players.LocalPlayer.PlayerScripts.TS.controllers.global.store).ClientStore:getState()
-						local toolType = store.hand.toolType
-
-						if toolType == "sword" then
-							-- Attack swing
-							SwordController:swingSwordAtMouse(0.39)
-						elseif toolType == "block" and BlockPlacementController then
-							-- Place blocks with CPS check
-							if (workspace:GetServerTimeNow() - BlockCpsController.lastPlaceTimestamp) >= ((1 / 12) * 0.5) then
-								local mouseinfo = BlockPlacementController.blockPlacer.clientManager:getBlockSelector():getMouseInfo(0)
-								if mouseinfo and mouseinfo.placementPosition then
-									task.spawn(BlockPlacementController.blockPlacer.placeBlock, BlockPlacementController.blockPlacer, mouseinfo.placementPosition)
-								end
-							end
-						end
-					end
-					task.wait(1 / 15) -- ~15 CPS (tweakable)
-				end
-			end)
+			old = bedwars.SwordController.isClickingTooFast
+			bedwars.SwordController.isClickingTooFast = function(self)
+				self.lastSwing = os.clock()
+				return false
+			end
 		else
-			if AutoClickerThread then
-				task.cancel(AutoClickerThread)
-				AutoClickerThread = nil
+			if old then
+				bedwars.SwordController.isClickingTooFast = old
 			end
 		end
-	end
+	end,
+	Tooltip = "Remove the CPS cap"
 })
-
 
