@@ -405,7 +405,6 @@ apex.categories.blatant:CreateModule({
 				countdownLabel.Visible = true
 				backgroundBar.Visible = true
 				rgbBar.Visible = true
-				setJumpPower(100)
 				rgbBar.Size = UDim2.new(timer / 5 * 2, 0, 1, 0)
 				local t = tick() % 5
 				rgbBar.BackgroundColor3 = Color3.fromHSV(t / 5, 1, 1)
@@ -413,7 +412,6 @@ apex.categories.blatant:CreateModule({
 				if countdownLabel then countdownLabel.Visible = false end
 				if backgroundBar then backgroundBar.Visible = false end
 				if rgbBar then rgbBar.Visible = false end
-				setJumpPower(50)
 			end
 		end
 
