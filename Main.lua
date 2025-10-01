@@ -965,61 +965,149 @@ apex.categories.utility:CreateModule({
 })
 
 local Players = game:GetService("Players")
-local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
 
-local AutoLockEnabled = false
+local Knit = debug.getupvalue(require(game.Players.LocalPlayer.PlayerScripts.TS.knit).setup, 9)
 
-local function getNearestPlayer(maxDist)
-	local nearest, dist = nil, maxDist
-	local myChar = LocalPlayer.Character
-	local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-	if not myHRP then return nil end
+local frictionTable, oldfrict = {}
+local frictionConnection
+local ZeroKBEnabled = false
+local autoClickerConnection
 
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-			local hrp = player.Character.HumanoidRootPart
-			local mag = (myHRP.Position - hrp.Position).Magnitude
-			if mag < dist then
-				nearest, dist = player, mag
+local function modifyVelocity(v)
+	if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" and not oldfrict[v] then
+		oldfrict[v] = v.CustomPhysicalProperties or "none"
+		v.CustomPhysicalProperties = PhysicalProperties.new(0.0001, 0.2, 0.5, 1, 1)
+	end
+end
+
+local function restoreVelocity(v)
+	if v:IsA("BasePart") and oldfrict[v] then
+		if oldfrict[v] == "none" then
+			v.CustomPhysicalProperties = nil
+		else
+			v.CustomPhysicalProperties = oldfrict[v]
+		end
+		oldfrict[v] = nil
+	end
+end
+
+apex.categories.combat:CreateModule({
+	Name = "ZeroKB+AutoSwing",
+	Callback = function(state)
+		ZeroKBEnabled = state
+
+		if state then
+			-- ZeroKB
+			local char = LocalPlayer.Character
+			if char then
+				for _, v in ipairs(char:GetDescendants()) do
+					modifyVelocity(v)
+				end
+			end
+
+			frictionConnection = LocalPlayer.CharacterAdded:Connect(function(c)
+				c.ChildAdded:Connect(function(part)
+					modifyVelocity(part)
+				end)
+				for _, v in ipairs(c:GetDescendants()) do
+					modifyVelocity(v)
+				end
+			end)
+
+			-- Auto-swing sword
+			autoClickerConnection = RunService.Heartbeat:Connect(function()
+				if Knit and Knit.Controllers and Knit.Controllers.SwordController then
+					local swordController = Knit.Controllers.SwordController
+					if swordController and swordController.sword then
+						swordController:swingSwordAtMouse(0.39) -- calls the swing method
+					end
+				end
+			end)
+		else
+			-- restore physics
+			local char = LocalPlayer.Character
+			if char then
+				for _, v in ipairs(char:GetDescendants()) do
+					restoreVelocity(v)
+				end
+			end
+			if frictionConnection then
+				frictionConnection:Disconnect()
+				frictionConnection = nil
+			end
+
+			-- stop auto-swing
+			if autoClickerConnection then
+				autoClickerConnection:Disconnect()
+				autoClickerConnection = nil
 			end
 		end
 	end
-	return nearest
-end
-
--- Example of how Vape grabs Bedwars modules
-local KnitClient = debug.getupvalue(require(game:GetService("ReplicatedStorage").rbxts_include.node_modules["@easy-games"].knit).KnitClient, 1)
-
-local Controllers = {}
-for _, v in pairs(debug.getupvalue(KnitClient.Start, 1)) do
-	Controllers[v.Name] = v
-end
-
--- expose them
-bedwars = {}
-bedwars.SwordController = Controllers.SwordController
-bedwars.BlockPlacementController = Controllers.BlockPlacementController
-bedwars.AppController = Controllers.AppController
-
---// Services
-local old
-
-apex.categories.blatant:CreateModule({
-	Name = "NoClickDelay",
-	Callback = function(state)
-		if state then
-			old = bedwars.SwordController.isClickingTooFast
-			bedwars.SwordController.isClickingTooFast = function(self)
-				self.lastSwing = os.clock()
-				return false
-			end
-		else
-			if old then
-				bedwars.SwordController.isClickingTooFast = old
-			end
-		end
-	end,
-	Tooltip = "Remove the CPS cap"
 })
 
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local frictionTable, oldfrict = {}
+local frictionConnection
+local ZeroKBEnabled = false
+
+local function modifyVelocity(v)
+	if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" and not oldfrict[v] then
+		oldfrict[v] = v.CustomPhysicalProperties or "none"
+		-- set to nearly frictionless, high elasticity to cancel knockback
+		v.CustomPhysicalProperties = PhysicalProperties.new(0.0001, 0.2, 0.5, 1, 1)
+	end
+end
+
+local function restoreVelocity(v)
+	if v:IsA("BasePart") and oldfrict[v] then
+		if oldfrict[v] == "none" then
+			v.CustomPhysicalProperties = nil
+		else
+			v.CustomPhysicalProperties = oldfrict[v]
+		end
+		oldfrict[v] = nil
+	end
+end
+
+apex.categories.combat:CreateModule({
+	Name = "ZeroKB",
+	Callback = function(state)
+		ZeroKBEnabled = state
+
+		if state then
+			-- apply immediately to current character
+			local char = LocalPlayer.Character
+			if char then
+				for _, v in ipairs(char:GetDescendants()) do
+					modifyVelocity(v)
+				end
+			end
+
+			-- keep applying as new parts spawn
+			frictionConnection = LocalPlayer.CharacterAdded:Connect(function(c)
+				c.ChildAdded:Connect(function(part)
+					modifyVelocity(part)
+				end)
+				for _, v in ipairs(c:GetDescendants()) do
+					modifyVelocity(v)
+				end
+			end)
+		else
+			-- restore original physical properties
+			local char = LocalPlayer.Character
+			if char then
+				for _, v in ipairs(char:GetDescendants()) do
+					restoreVelocity(v)
+				end
+			end
+			if frictionConnection then
+				frictionConnection:Disconnect()
+				frictionConnection = nil
+			end
+		end
+	end
+})
