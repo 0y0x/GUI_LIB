@@ -988,49 +988,62 @@ local function getNearestPlayer(maxDist)
 	return nearest
 end
 
+local AutoClickerEnabled = false
+local AutoClickerThread
+
+-- You’ll need to grab Knit + BedWars controllers like Vape does
+local Knit
+repeat
+	pcall(function()
+		Knit = debug.getupvalue(require(game.Players.LocalPlayer.PlayerScripts.TS.knit).setup, 9)
+	end)
+	task.wait()
+until Knit and Knit.Controllers
+
+local SwordController = Knit.Controllers.SwordController
+local BlockPlacementController = Knit.Controllers.BlockPlacementController
+local BlockCpsController = Knit.Controllers.BlockCpsController
+local AppController = Knit.Controllers.AppController
+local UILayers = require(game.Players.LocalPlayer.PlayerScripts.TS.ui["ui-layers"]).UILayers
+
 apex.categories.combat:CreateModule({
-	Name = "AutoLock",
+	Name = "AutoClicker",
 	Callback = function(state)
-		AutoLockEnabled = state
+		AutoClickerEnabled = state
 
-		-- Only start loop once per enable
-		if AutoLockEnabled and not apex._AutoLockLoop then
-			apex._AutoLockLoop = true
-			task.spawn(function()
-				while AutoLockEnabled do
-					-- safety: ensure character exists
-					local char = LocalPlayer.Character
-					local root = char and char:FindFirstChild("HumanoidRootPart")
-					local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-					if root and humanoid and humanoid.Health > 0 then
-						local target = getNearestPlayer(20)
-						if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-							local targetRoot = target.Character.HumanoidRootPart
+		if state then
+			if AutoClickerThread then task.cancel(AutoClickerThread) end
 
-							-- Face target (only yaw)
-							local dir = (targetRoot.Position - root.Position)
-							local look = Vector3.new(dir.X, 0, dir.Z)
-							if look.Magnitude > 0 then
-								root.CFrame = CFrame.new(root.Position, root.Position + look.Unit)
-							end
+			AutoClickerThread = task.spawn(function()
+				while AutoClickerEnabled do
+					-- Skip if menu/layer is open
+					if not AppController:isLayerOpen(UILayers.MAIN) then
+						local store = require(game.Players.LocalPlayer.PlayerScripts.TS.controllers.global.store).ClientStore:getState()
+						local toolType = store.hand.toolType
 
-							-- Spam left click via VirtualUser (mobile-safe)
-							-- do 5 clicks per 0.1s => 50 clicks/sec
-							for i = 1, 5 do
-								-- Use a neutral screen position (0,0) so no cursor movement
-								VirtualUser:Button1Down(Vector2.new(0, 0))
-								VirtualUser:Button1Up(Vector2.new(0, 0))
+						if toolType == "sword" then
+							-- Attack swing
+							SwordController:swingSwordAtMouse(0.39)
+						elseif toolType == "block" and BlockPlacementController then
+							-- Place blocks with CPS check
+							if (workspace:GetServerTimeNow() - BlockCpsController.lastPlaceTimestamp) >= ((1 / 12) * 0.5) then
+								local mouseinfo = BlockPlacementController.blockPlacer.clientManager:getBlockSelector():getMouseInfo(0)
+								if mouseinfo and mouseinfo.placementPosition then
+									task.spawn(BlockPlacementController.blockPlacer.placeBlock, BlockPlacementController.blockPlacer, mouseinfo.placementPosition)
+								end
 							end
 						end
 					end
-
-					task.wait(0.1)
+					task.wait(1 / 15) -- ~15 CPS (tweakable)
 				end
-
-				-- loop finished; clear loop flag so it can be started again later
-				apex._AutoLockLoop = nil
 			end)
+		else
+			if AutoClickerThread then
+				task.cancel(AutoClickerThread)
+				AutoClickerThread = nil
+			end
 		end
 	end
 })
+
 
