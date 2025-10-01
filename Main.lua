@@ -200,53 +200,6 @@ apex.categories.combat:CreateModule({
 	end
 })
 
-
-
-
-
-
--- Autoclicker Module
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = Players.LocalPlayer
-
-local AutoClickerEnabled = false
-local Mode = { Value = "Tool" } -- Default mode
-local CPS = { GetRandomValue = function() return math.random(99999, 99999) end } -- Default CPS
-
-AutoClicker = apex.categories.combat:CreateModule({
-	Name = "AutoClicker",
-	Callback = function(state)
-		AutoClickerEnabled = state
-
-		if AutoClickerEnabled then
-			task.spawn(function()
-				while AutoClickerEnabled do
-					if Mode.Value == "Tool" then
-						local character = LocalPlayer.Character
-						if character then
-							local tool = character:FindFirstChildOfClass("Tool")
-							if tool and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-								tool:Activate()
-							end
-						end
-					else
-						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-							mouse1click()
-						elseif UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-							mouse2click()
-						end
-					end
-
-					task.wait(1 / CPS.GetRandomValue())
-				end
-			end)
-		end
-	end
-})
-
-
-
 -- Zoom Unlocker Module
 apex.categories.utility:CreateModule({
 	Name = "ZoomUnlocker",
