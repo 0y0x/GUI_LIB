@@ -653,8 +653,9 @@ apex.categories.render:CreateModule({
 
 		local function clearESP()
 			for _, boxData in pairs(boxes) do
-				if boxData.Box then boxData.Box:Remove() end
-				if boxData.Outline then boxData.Outline:Remove() end
+				if boxData.Box then
+					boxData.Box:Remove()
+				end
 			end
 			table.clear(boxes)
 			for _, conn in pairs(connections) do
@@ -664,27 +665,18 @@ apex.categories.render:CreateModule({
 		end
 
 		local function addESP(player)
-			if boxes[player] then return end -- avoid duplicates
-
-			local outline = Drawing.new("Square")
-			outline.Visible = false
-			outline.Color = Color3.new(0, 0, 0)
-			outline.Thickness = 2
-			outline.Transparency = 1
-			outline.Filled = false
+			if boxes[player] then return end
 
 			local box = Drawing.new("Square")
 			box.Visible = false
-			box.Color = Color3.new(1, 1, 1)
 			box.Thickness = 1
 			box.Transparency = 1
 			box.Filled = false
 
-			boxes[player] = {Box = box, Outline = outline}
+			boxes[player] = {Box = box}
 
 			local conn = RunService.RenderStepped:Connect(function()
 				if not player.Character then
-					outline.Visible = false
 					box.Visible = false
 					return
 				end
@@ -692,8 +684,14 @@ apex.categories.render:CreateModule({
 				local humanoid = player.Character:FindFirstChild("Humanoid")
 				local root = player.Character:FindFirstChild("HumanoidRootPart")
 				local head = player.Character:FindFirstChild("Head")
+
 				if not humanoid or not root or not head or humanoid.Health <= 0 then
-					outline.Visible = false
+					box.Visible = false
+					return
+				end
+
+				-- Don't show ESP for teammates
+				if player.TeamColor == LocalPlayer.TeamColor then
 					box.Visible = false
 					return
 				end
@@ -706,21 +704,13 @@ apex.categories.render:CreateModule({
 					local height = headPos.Y - legPos.Y
 					local width = height / 2
 
-					outline.Size = Vector2.new(width, height)
-					outline.Position = Vector2.new(rootPos.X - width / 2, legPos.Y)
-					outline.Visible = true
-
 					box.Size = Vector2.new(width, height)
 					box.Position = Vector2.new(rootPos.X - width / 2, legPos.Y)
 					box.Visible = true
 
-					if player.TeamColor == LocalPlayer.TeamColor then
-						box.Color = Color3.fromRGB(0, 255, 0) -- green teammates
-					else
-						box.Color = Color3.fromRGB(255, 0, 0) -- red enemies
-					end
+					-- Box color matches enemy team color
+					box.Color = player.TeamColor.Color
 				else
-					outline.Visible = false
 					box.Visible = false
 				end
 			end)
@@ -737,9 +727,8 @@ apex.categories.render:CreateModule({
 
 			table.insert(connections, Players.PlayerAdded:Connect(addESP))
 			table.insert(connections, Players.PlayerRemoving:Connect(function(p)
-				if boxes[p] then
-					if boxes[p].Box then boxes[p].Box:Remove() end
-					if boxes[p].Outline then boxes[p].Outline:Remove() end
+				if boxes[p] and boxes[p].Box then
+					boxes[p].Box:Remove()
 					boxes[p] = nil
 				end
 			end))
@@ -748,6 +737,7 @@ apex.categories.render:CreateModule({
 		end
 	end
 })
+
 
 
 
@@ -969,29 +959,3 @@ local bedwars = Knit.Controllers.GameController
 
 local oldKnockback
 local rand = Random.new()
-
-apex.categories.combat:CreateModule({
-	Name = "NoKB",
-	Callback = function(state)
-		if state then
-			if not oldKnockback then
-				oldKnockback = bedwars.KnockbackUtil.applyKnockback
-			end
-
-			bedwars.KnockbackUtil.applyKnockback = function(root, mass, dir, knockback, ...)
-				-- Block all knockback
-				if knockback then
-					knockback.horizontal = 0
-					knockback.vertical = 0
-				end
-				return oldKnockback(root, mass, dir, knockback, ...)
-			end
-		else
-			if oldKnockback then
-				bedwars.KnockbackUtil.applyKnockback = oldKnockback
-				oldKnockback = nil
-			end
-		end
-	end
-})
-
