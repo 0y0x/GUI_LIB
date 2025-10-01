@@ -964,150 +964,34 @@ apex.categories.utility:CreateModule({
 	end
 })
 
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
-
 local Knit = debug.getupvalue(require(game.Players.LocalPlayer.PlayerScripts.TS.knit).setup, 9)
+local bedwars = Knit.Controllers.GameController
 
-local frictionTable, oldfrict = {}
-local frictionConnection
-local ZeroKBEnabled = false
-local autoClickerConnection
-
-local function modifyVelocity(v)
-	if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" and not oldfrict[v] then
-		oldfrict[v] = v.CustomPhysicalProperties or "none"
-		v.CustomPhysicalProperties = PhysicalProperties.new(0.0001, 0.2, 0.5, 1, 1)
-	end
-end
-
-local function restoreVelocity(v)
-	if v:IsA("BasePart") and oldfrict[v] then
-		if oldfrict[v] == "none" then
-			v.CustomPhysicalProperties = nil
-		else
-			v.CustomPhysicalProperties = oldfrict[v]
-		end
-		oldfrict[v] = nil
-	end
-end
+local oldKnockback
+local rand = Random.new()
 
 apex.categories.combat:CreateModule({
-	Name = "ZeroKB+AutoSwing",
+	Name = "NoKB",
 	Callback = function(state)
-		ZeroKBEnabled = state
-
 		if state then
-			-- ZeroKB
-			local char = LocalPlayer.Character
-			if char then
-				for _, v in ipairs(char:GetDescendants()) do
-					modifyVelocity(v)
-				end
+			if not oldKnockback then
+				oldKnockback = bedwars.KnockbackUtil.applyKnockback
 			end
 
-			frictionConnection = LocalPlayer.CharacterAdded:Connect(function(c)
-				c.ChildAdded:Connect(function(part)
-					modifyVelocity(part)
-				end)
-				for _, v in ipairs(c:GetDescendants()) do
-					modifyVelocity(v)
+			bedwars.KnockbackUtil.applyKnockback = function(root, mass, dir, knockback, ...)
+				-- Block all knockback
+				if knockback then
+					knockback.horizontal = 0
+					knockback.vertical = 0
 				end
-			end)
-
-			-- Auto-swing sword
-			autoClickerConnection = RunService.Heartbeat:Connect(function()
-				if Knit and Knit.Controllers and Knit.Controllers.SwordController then
-					local swordController = Knit.Controllers.SwordController
-					if swordController and swordController.sword then
-						swordController:swingSwordAtMouse(0.39) -- calls the swing method
-					end
-				end
-			end)
+				return oldKnockback(root, mass, dir, knockback, ...)
+			end
 		else
-			-- restore physics
-			local char = LocalPlayer.Character
-			if char then
-				for _, v in ipairs(char:GetDescendants()) do
-					restoreVelocity(v)
-				end
-			end
-			if frictionConnection then
-				frictionConnection:Disconnect()
-				frictionConnection = nil
-			end
-
-			-- stop auto-swing
-			if autoClickerConnection then
-				autoClickerConnection:Disconnect()
-				autoClickerConnection = nil
+			if oldKnockback then
+				bedwars.KnockbackUtil.applyKnockback = oldKnockback
+				oldKnockback = nil
 			end
 		end
 	end
 })
 
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-
-local frictionTable, oldfrict = {}
-local frictionConnection
-local ZeroKBEnabled = false
-
-local function modifyVelocity(v)
-	if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" and not oldfrict[v] then
-		oldfrict[v] = v.CustomPhysicalProperties or "none"
-		-- set to nearly frictionless, high elasticity to cancel knockback
-		v.CustomPhysicalProperties = PhysicalProperties.new(0.0001, 0.2, 0.5, 1, 1)
-	end
-end
-
-local function restoreVelocity(v)
-	if v:IsA("BasePart") and oldfrict[v] then
-		if oldfrict[v] == "none" then
-			v.CustomPhysicalProperties = nil
-		else
-			v.CustomPhysicalProperties = oldfrict[v]
-		end
-		oldfrict[v] = nil
-	end
-end
-
-apex.categories.combat:CreateModule({
-	Name = "ZeroKB",
-	Callback = function(state)
-		ZeroKBEnabled = state
-
-		if state then
-			-- apply immediately to current character
-			local char = LocalPlayer.Character
-			if char then
-				for _, v in ipairs(char:GetDescendants()) do
-					modifyVelocity(v)
-				end
-			end
-
-			-- keep applying as new parts spawn
-			frictionConnection = LocalPlayer.CharacterAdded:Connect(function(c)
-				c.ChildAdded:Connect(function(part)
-					modifyVelocity(part)
-				end)
-				for _, v in ipairs(c:GetDescendants()) do
-					modifyVelocity(v)
-				end
-			end)
-		else
-			-- restore original physical properties
-			local char = LocalPlayer.Character
-			if char then
-				for _, v in ipairs(char:GetDescendants()) do
-					restoreVelocity(v)
-				end
-			end
-			if frictionConnection then
-				frictionConnection:Disconnect()
-				frictionConnection = nil
-			end
-		end
-	end
-})
