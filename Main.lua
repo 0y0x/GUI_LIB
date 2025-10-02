@@ -1028,56 +1028,28 @@ apex.categories.render:CreateModule({
 	end,
 })
 
+local clicking = false
+local clickDelay = 0.1 -- seconds between clicks
 
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
-
-local AutoClickerModule
-local clickThread
-
-local CPS = 7           -- default clicks per second
-local PlaceBlocks = true
-local BlockCPS = 12     -- default block place CPS
-
-local function AutoClick()
-	if clickThread then
-		task.cancel(clickThread)
-	end
-
-	clickThread = task.spawn(function()
-		while AutoClickerModule and AutoClickerModule.Enabled do
-			-- Attack logic
-			local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
-			if tool then
-				if PlaceBlocks and tool.Name:lower():find("block") then
-					-- Place blocks logic placeholder
-					-- You would need to replace this with your game's block placement logic
-					print("Placing block")
-				else
-					-- Simulate swinging sword/tool
-					tool:Activate()
-				end
-			end
-
-			task.wait(1 / (PlaceBlocks and BlockCPS or CPS))
-		end
-	end)
-end
-
-AutoClickerModule = apex.categories.blatant:CreateModule({
-	Name = "AutoClicker",
+apex.categories.blatant:CreateModule({
+	Name = "MobileClicker",
 	Callback = function(state)
 		if state then
-			-- Start autoclick loop when enabled
-			AutoClick()
+			clicking = true
+			task.spawn(function()
+				while clicking do
+					-- Center of screen
+					local screenSize = UserInputService:GetScreenSize()
+					local center = Vector2.new(screenSize.X / 2, screenSize.Y / 2)
+
+					-- Mobile tap
+					delta.touch(center)
+
+					task.wait(clickDelay)
+				end
+			end)
 		else
-			-- Stop loop when disabled
-			if clickThread then
-				task.cancel(clickThread)
-				clickThread = nil
-			end
+			clicking = false
 		end
 	end
 })
