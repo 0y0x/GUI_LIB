@@ -200,6 +200,53 @@ apex.categories.combat:CreateModule({
 	end
 })
 
+
+
+
+
+
+-- Autoclicker Module
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+local AutoClickerEnabled = false
+local Mode = { Value = "Tool" } -- Default mode
+local CPS = { GetRandomValue = function() return math.random(99999, 99999) end } -- Default CPS
+
+AutoClicker = apex.categories.combat:CreateModule({
+	Name = "AutoClicker",
+	Callback = function(state)
+		AutoClickerEnabled = state
+
+		if AutoClickerEnabled then
+			task.spawn(function()
+				while AutoClickerEnabled do
+					if Mode.Value == "Tool" then
+						local character = LocalPlayer.Character
+						if character then
+							local tool = character:FindFirstChildOfClass("Tool")
+							if tool and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+								tool:Activate()
+							end
+						end
+					else
+						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+							mouse1click()
+						elseif UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+							mouse2click()
+						end
+					end
+
+					task.wait(1 / CPS.GetRandomValue())
+				end
+			end)
+		end
+	end
+})
+
+
+
 -- Zoom Unlocker Module
 apex.categories.utility:CreateModule({
 	Name = "ZoomUnlocker",
@@ -218,19 +265,16 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 -- Create health label
-local healthLabel = Instance.new("TextLabel")
-healthLabel.Name = "HealthLabel"
-healthLabel.Size = UDim2.new(0, 150, 0, 50)
-healthLabel.AnchorPoint = Vector2.new(0.5, 1)
-healthLabel.Position = UDim2.new(0.5, 0, 0.6, 0)
-healthLabel.BackgroundTransparency = 0.5
-healthLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-healthLabel.TextColor3 = Color3.fromRGB(46, 255, 23)
-healthLabel.Font = Enum.Font.SourceSansBold
-healthLabel.TextSize = 20
-healthLabel.Text = "Health: 100 ♥️"
-healthLabel.Parent = LocalPlayer.PlayerGui:WaitForChild("ApexUI")
-healthLabel.Visible = false
+local label = Instance.new('TextLabel')
+label.Size = UDim2.fromOffset(100, 20)
+label.Position = UDim2.new(0.5, 6, 0.5, 30)
+label.BackgroundTransparency = 1
+label.AnchorPoint = Vector2.new(0.5, 0)
+label.TextSize = 18
+label.Font = Enum.Font.Arial
+label.Text = ""
+label.Visible = false
+label.Parent = LocalPlayer.PlayerGui:WaitForChild("ApexUI")
 
 -- Keep a single update loop
 local updateConnection
@@ -238,21 +282,31 @@ local updateConnection
 apex.categories.render:CreateModule({
 	Name = "Health",
 	Callback = function(state)
-		healthLabel.Visible = state
+		label.Visible = state
 
 		if state then
-			-- Start updating health
 			if not updateConnection then
 				updateConnection = RunService.RenderStepped:Connect(function()
 					local char = LocalPlayer.Character
 					local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-					if humanoid then
-						healthLabel.Text = "Health: "..math.floor(humanoid.Health) .. " ♥️"
+
+					if humanoid and humanoid.Health > 0 then
+						local health = humanoid.Health
+						local maxHealth = humanoid.MaxHealth > 0 and humanoid.MaxHealth or 100
+						local ratio = health / maxHealth
+
+						-- Hue goes from 0 (red) to 1/3 (green)
+						local hue = ratio * (1/3) 
+						label.TextColor3 = Color3.fromHSV(hue, 1, 1)
+
+						label.Text = math.floor(health) .. " ❤️"
+					else
+						label.Text = "0 ❤️"
+						label.TextColor3 = Color3.new(1, 0, 0) -- solid red when dead
 					end
 				end)
 			end
 		else
-			-- Stop updating health when disabled
 			if updateConnection then
 				updateConnection:Disconnect()
 				updateConnection = nil
@@ -260,6 +314,8 @@ apex.categories.render:CreateModule({
 		end
 	end
 })
+
+
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -661,8 +717,15 @@ apex.categories.render:CreateModule({
 					box.Position = Vector2.new(rootPos.X - width / 2, legPos.Y)
 					box.Visible = true
 
-					-- Box color matches enemy team color
-					box.Color = player.TeamColor.Color
+					local color
+
+					if player.Team ~= nil and player.TeamColor ~= nil then
+						color = player.TeamColor.Color
+					else
+						color = Color3.fromRGB(255, 255, 255) -- default white
+					end
+
+					box.Color = color
 				else
 					box.Visible = false
 				end
@@ -912,3 +975,156 @@ local bedwars = Knit.Controllers.GameController
 
 local oldKnockback
 local rand = Random.new()
+
+local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Folder to store ESP adornments
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "BedESPFolder"
+ESPFolder.Parent = LocalPlayer.PlayerGui:WaitForChild("ApexUI")
+
+-- Reference table for each bed’s adornments
+local Reference = {}
+
+-- Function to add ESP to a bed
+local function AddBedESP(bed)
+	if not Reference[bed] then
+		local BedFolder = Instance.new("Folder")
+		BedFolder.Name = bed.Name .. "_ESP"
+		BedFolder.Parent = ESPFolder
+		Reference[bed] = BedFolder
+
+		local parts = bed:GetChildren()
+		table.sort(parts, function(a, b)
+			return a.Name > b.Name
+		end)
+
+		for _, part in ipairs(parts) do
+			if part:IsA("BasePart") and part.Name ~= "Blanket" then
+				local handle = Instance.new("BoxHandleAdornment")
+				handle.Size = part.Size + Vector3.new(.01, .01, .01)
+				handle.AlwaysOnTop = true
+				handle.ZIndex = 2
+				handle.Visible = true
+				handle.Adornee = part
+				handle.Color3 = part.Color
+				if part.Name == "Legs" then
+					handle.Color3 = Color3.fromRGB(167, 112, 64)
+					handle.Size = part.Size + Vector3.new(.01, -1, .01)
+					handle.CFrame = CFrame.new(0, -0.4, 0)
+					handle.ZIndex = 0
+				end
+				handle.Parent = BedFolder
+			end
+		end
+	end
+end
+
+-- Function to remove ESP when bed is gone
+local function RemoveBedESP(bed)
+	if Reference[bed] then
+		Reference[bed]:Destroy()
+		Reference[bed] = nil
+	end
+end
+
+-- Apex module
+apex.categories.render:CreateModule({
+	Name = "BedESP",
+	Callback = function(state)
+		if state then
+			-- Add ESP to existing beds
+			for _, bed in ipairs(CollectionService:GetTagged("bed")) do
+				AddBedESP(bed)
+			end
+
+			-- Listen for new beds
+			CollectionService:GetInstanceAddedSignal("bed"):Connect(function(bed)
+				task.delay(0.2, AddBedESP, bed)
+			end)
+
+			-- Listen for removed beds
+			CollectionService:GetInstanceRemovedSignal("bed"):Connect(function(bed)
+				RemoveBedESP(bed)
+			end)
+		else
+			-- Disable: clear everything
+			ESPFolder:ClearAllChildren()
+			table.clear(Reference)
+		end
+	end,
+})
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local updateConnection
+local RANGE = 10     -- default range
+local ANGLE = 360    -- default angle
+
+local function getNearestTarget(range, maxAngle)
+	local nearest
+	local shortestDist = math.huge
+	local myPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position
+
+	if not myPos then return nil end
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character:FindFirstChild("HumanoidRootPart") then
+			local humanoid = player.Character.Humanoid
+			if humanoid.Health > 0 then
+				local targetPos = player.Character.HumanoidRootPart.Position
+				local dist = (targetPos - myPos).Magnitude
+
+				if dist <= range then
+					local lookVector = (targetPos - myPos).Unit
+					local forward = (Camera.CFrame.LookVector * Vector3.new(1, 0, 1)).Unit
+					local angle = math.deg(math.acos(forward:Dot(lookVector)))
+
+					if angle <= maxAngle / 2 and dist < shortestDist then
+						shortestDist = dist
+						nearest = player
+					end
+				end
+			end
+		end
+	end
+
+	return nearest
+end
+
+-- Create KillAura module
+local KillAura = apex.categories.blatant:CreateModule({
+	Name = "KillAura",
+	Callback = function(state)
+		if state then
+			updateConnection = RunService.Heartbeat:Connect(function()
+				local char = LocalPlayer.Character
+				if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+				local target = getNearestTarget(RANGE, ANGLE)
+				if target and target.Character and target.Character:FindFirstChild("Humanoid") then
+					local humanoid = target.Character.Humanoid
+					if humanoid.Health > 0 then
+						-- Your attack logic here
+						print("Attacking:", target.Name)
+
+						local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+						if tool then
+							tool:Activate()
+						end
+					end
+				end
+			end)
+		else
+			if updateConnection then
+				updateConnection:Disconnect()
+				updateConnection = nil
+			end
+		end
+	end
+})
