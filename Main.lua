@@ -3,9 +3,46 @@
 local gui_lib = {}
 gui_lib.categories = {}
 
+-- Services
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CollectionService = game:GetService("CollectionService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
+local CoreGui = game:GetService("CoreGui")
+local Lighting = game:GetService("Lighting")
+local GuiService = game:GetService("GuiService")
+local HttpService = game:GetService("HttpService")
+local TextService = game:GetService("TextService")
+local ContextActionService = game:GetService("ContextActionService")
+local RunService = game:GetService("RunService")
+
+-- Player variables
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+-- Camera
+local Camera = Workspace.CurrentCamera
+
+-- Input
+local Mouse = LocalPlayer:GetMouse()
+
+-- Time & Utility
+local tick = tick
+local task = task
+local math = math
+local table = table
+local string = string
+local Vector3 = Vector3
+local CFrame = CFrame
+local Color3 = Color3
+
 
 -- Main ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
@@ -204,49 +241,6 @@ apex.categories.combat:CreateModule({
 
 
 
-
--- Autoclicker Module
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = Players.LocalPlayer
-
-local AutoClickerEnabled = false
-local Mode = { Value = "Tool" } -- Default mode
-local CPS = { GetRandomValue = function() return math.random(99999, 99999) end } -- Default CPS
-
-AutoClicker = apex.categories.combat:CreateModule({
-	Name = "AutoClicker",
-	Callback = function(state)
-		AutoClickerEnabled = state
-
-		if AutoClickerEnabled then
-			task.spawn(function()
-				while AutoClickerEnabled do
-					if Mode.Value == "Tool" then
-						local character = LocalPlayer.Character
-						if character then
-							local tool = character:FindFirstChildOfClass("Tool")
-							if tool and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-								tool:Activate()
-							end
-						end
-					else
-						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-							mouse1click()
-						elseif UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-							mouse2click()
-						end
-					end
-
-					task.wait(1 / CPS.GetRandomValue())
-				end
-			end)
-		end
-	end
-})
-
-
-
 -- Zoom Unlocker Module
 apex.categories.utility:CreateModule({
 	Name = "ZoomUnlocker",
@@ -260,9 +254,6 @@ apex.categories.utility:CreateModule({
 	end
 })
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
 
 -- Create health label
 local label = Instance.new('TextLabel')
@@ -315,11 +306,6 @@ apex.categories.render:CreateModule({
 	end
 })
 
-
-
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 
 local AntiVoidEnabled = false
 
@@ -545,10 +531,6 @@ apex.categories.world:CreateModule({
 apex.categories.render:CreateModule({
 	Name = "LineESP",
 	Callback = function(state)
-		local Players = game:GetService("Players")
-		local RunService = game:GetService("RunService")
-		local LocalPlayer = Players.LocalPlayer
-		local Camera = workspace.CurrentCamera
 
 		local lines = {}
 		local running = false
@@ -610,9 +592,6 @@ apex.categories.blatant:CreateModule({
 	Name = "Spider",
 	Callback = function(state)
 		-- Services
-		local Players = game:GetService("Players")
-		local RunService = game:GetService("RunService")
-		local LocalPlayer = Players.LocalPlayer
 
 		SpiderEnabled = state
 
@@ -652,10 +631,6 @@ apex.categories.blatant:CreateModule({
 apex.categories.render:CreateModule({
 	Name = "ESP",
 	Callback = function(state)
-		local Players = game:GetService("Players")
-		local RunService = game:GetService("RunService")
-		local LocalPlayer = Players.LocalPlayer
-		local Camera = workspace.CurrentCamera
 
 		local connections = {}
 		local boxes = {}
@@ -800,10 +775,6 @@ apex.categories.utility:CreateModule({
 	end
 })
 
-
-
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
 local InfiniteJumpEnabled = false
@@ -1057,73 +1028,55 @@ apex.categories.render:CreateModule({
 	end,
 })
 
+
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
 
-local updateConnection
-local RANGE = 10     -- default range
-local ANGLE = 360    -- default angle
+local AutoClickerModule
+local clickThread
 
-local function getNearestTarget(range, maxAngle)
-	local nearest
-	local shortestDist = math.huge
-	local myPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position
+local CPS = 7           -- default clicks per second
+local PlaceBlocks = true
+local BlockCPS = 12     -- default block place CPS
 
-	if not myPos then return nil end
-
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character:FindFirstChild("HumanoidRootPart") then
-			local humanoid = player.Character.Humanoid
-			if humanoid.Health > 0 then
-				local targetPos = player.Character.HumanoidRootPart.Position
-				local dist = (targetPos - myPos).Magnitude
-
-				if dist <= range then
-					local lookVector = (targetPos - myPos).Unit
-					local forward = (Camera.CFrame.LookVector * Vector3.new(1, 0, 1)).Unit
-					local angle = math.deg(math.acos(forward:Dot(lookVector)))
-
-					if angle <= maxAngle / 2 and dist < shortestDist then
-						shortestDist = dist
-						nearest = player
-					end
-				end
-			end
-		end
+local function AutoClick()
+	if clickThread then
+		task.cancel(clickThread)
 	end
 
-	return nearest
+	clickThread = task.spawn(function()
+		while AutoClickerModule and AutoClickerModule.Enabled do
+			-- Attack logic
+			local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+			if tool then
+				if PlaceBlocks and tool.Name:lower():find("block") then
+					-- Place blocks logic placeholder
+					-- You would need to replace this with your game's block placement logic
+					print("Placing block")
+				else
+					-- Simulate swinging sword/tool
+					tool:Activate()
+				end
+			end
+
+			task.wait(1 / (PlaceBlocks and BlockCPS or CPS))
+		end
+	end)
 end
 
--- Create KillAura module
-local KillAura = apex.categories.blatant:CreateModule({
-	Name = "KillAura",
+AutoClickerModule = apex.categories.blatant:CreateModule({
+	Name = "AutoClicker",
 	Callback = function(state)
 		if state then
-			updateConnection = RunService.Heartbeat:Connect(function()
-				local char = LocalPlayer.Character
-				if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-
-				local target = getNearestTarget(RANGE, ANGLE)
-				if target and target.Character and target.Character:FindFirstChild("Humanoid") then
-					local humanoid = target.Character.Humanoid
-					if humanoid.Health > 0 then
-						-- Your attack logic here
-						print("Attacking:", target.Name)
-
-						local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
-						if tool then
-							tool:Activate()
-						end
-					end
-				end
-			end)
+			-- Start autoclick loop when enabled
+			AutoClick()
 		else
-			if updateConnection then
-				updateConnection:Disconnect()
-				updateConnection = nil
+			-- Stop loop when disabled
+			if clickThread then
+				task.cancel(clickThread)
+				clickThread = nil
 			end
 		end
 	end
