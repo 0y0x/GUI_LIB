@@ -1131,11 +1131,11 @@ apex.categories.blatant:CreateModule({
 		local function createPlatform()
 			if not platform or not platform.Parent then
 				platform = Instance.new("Part")
-				platform.Size = Vector3.new(100000, 0.1, 100000)
+				platform.Size = Vector3.new(100000, 1, 100000)
 				platform.Anchored = true
 				platform.Material = Enum.Material.Ice
 				platform.Transparency = 0.9
-				platform.Color = Color3.fromRGB(255, 255, 255)
+				platform.Color = Color3.fromRGB(103, 101, 101)
 				platform.TopSurface = Enum.SurfaceType.Smooth
 				platform.BottomSurface = Enum.SurfaceType.Smooth
 				platform.Position = Vector3.new(0, 0, 0)
@@ -1236,7 +1236,7 @@ apex.categories.blatant:CreateModule({
 					resetTimer()
 				end
 
-				platform.Position = Vector3.new(0, hitObject.Position.Y - 0.1, 0)
+				platform.Position = Vector3.new(0, hitObject.Position.Y - 0.5, 0)
 				touchingPlate = false
 			else
 				touchingPlate = true
